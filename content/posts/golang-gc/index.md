@@ -51,7 +51,7 @@ mark阶段分为如下几步：
 - 禁用GC Assists
 
 4.**sweep**  
-标记结束之后进入sweep阶段，设置`gcphace`为 \_GCoff, 禁用写屏障, 在这之后会Start The World， 启动执行用户代码，这时候意味着并发标记已经结束了，剩下的就是内存回收的工作了。
+标记结束之后进入sweep阶段，设置`gcphace`为 _GCoff, 禁用写屏障, 在这之后会Start The World， 启动执行用户代码，这时候意味着并发标记已经结束了，剩下的就是内存回收的工作了。
 
 - 从这个阶段开始，新的内存分配请求会**复用**被标记为可回收的内存，这意味着内存的回收是惰性的，不是立刻回收。
 - 基于cpu使用情况，调度器可能启动额外的goroutine来执行内存回收
@@ -74,6 +74,7 @@ GC调优的目的很简单：节约堆内存，降低GC造成的CPU消耗，避�
 
 下面通过一个例子来分析GC调优的一些方法，这个例子中首先创建了长度为1000的256位随机字符串数组，然后在每一个web请求中随机生成一个字符串，然后再到字符串数组中查找，这个过程是对查找用户缓存的一个简单模拟，具体代码功能可以参考注释：
 
+```
 package main
 
 import (
@@ -82,13 +83,13 @@ import (
 	"net/http"
 
 	// 用于启动pprof的web接口
-	\_ "net/http/pprof"
+	_ "net/http/pprof"
 
 	"strings"
 )
 
 // ids 模拟含有1000个用户id的缓存
-var ids = make(\[\]string, 1000)
+var ids = make([]string, 1000)
 
 func main() {
 	// 初始化缓存
@@ -102,9 +103,9 @@ func main() {
 }
 
 // slowGC 模拟由于内存分配导致的GC
-func slowGC(w http.ResponseWriter, r \*http.Request) {
+func slowGC(w http.ResponseWriter, r *http.Request) {
 	currentUser := getRandString(256)
-	for \_, id := range ids {
+	for _, id := range ids {
 		// 这里调用了strings.ToLower函数，这个函数会导致字符串的复制
 		if strings.Contains(strings.ToLower(currentUser), strings.ToLower(id)) {
 		// if strings.Contains(id, currentUser) {
@@ -118,13 +119,14 @@ const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 // getRandString 生成指定位数的字符串
 func getRandString(length int) string {
-	rnd := make(\[\]byte, length)
+	rnd := make([]byte, length)
 	for i := range rnd {
-		rnd\[i\] = letters\[rand.Intn(len(letters))\]
+		rnd[i] = letters[rand.Intn(len(letters))]
 	}
 	s := string(rnd)
 	return s
 }
+```
 
 ### 2.1 分析GC问题的瓶颈
 
@@ -270,6 +272,7 @@ go tool pprof http://localhost:8080/debug/pprof/allocs
 
 进入pprof工具的交互模式，然后输人`top 5 -cum`查看分配内存最多的5个函数，从输出结果我们可以看出，`slowGC`函数分配了7GB左右的内存，这有一些奇怪，然后我们可以执行`list slowGC`命令，可以看出在第33行调用的操作字符串的方法分配内存最多，至此原因大概明白了，golang中string类型是不可变的，每次调用`strings.ToLower()`方法时候都会申请内存分配一个新的字符串，最后就造成的每次循环中都会申请一块新内存，从而造成GC压力（调用ToLower()方法只是为了举例说明GC问题，并无实际的意义）。我们可以针对这个问题做一下简单的修改，将第33行的ToLower()函数移动到循环之外：
 
+```
 package main
 
 import (
@@ -278,13 +281,13 @@ import (
 	"net/http"
 
 	// 用于启动pprof的web接口
-	\_ "net/http/pprof"
+	_ "net/http/pprof"
 
 	"strings"
 )
 
 // ids 模拟含有1000个用户id的缓存
-var ids = make(\[\]string, 1000)
+var ids = make([]string, 1000)
 
 func main() {
 	// 初始化缓存
@@ -299,11 +302,11 @@ func main() {
 }
 
 // slowGC 模拟由于内存分配导致的GC
-func slowGC(w http.ResponseWriter, r \*http.Request) {
+func slowGC(w http.ResponseWriter, r *http.Request) {
 	currentUser := getRandString(256)
         // 将ToLower()的调用移动到循环之外
 	currentUser = strings.ToLower(currentUser)
-	for \_, id := range ids {
+	for _, id := range ids {
 		if strings.Contains(id, currentUser) {
 			io.WriteString(w, "hit")
 		}
@@ -315,13 +318,14 @@ const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 // getRandString 生成指定位数的字符串
 func getRandString(length int) string {
-	rnd := make(\[\]byte, length)
+	rnd := make([]byte, length)
 	for i := range rnd {
-		rnd\[i\] = letters\[rand.Intn(len(letters))\]
+		rnd[i] = letters[rand.Intn(len(letters))]
 	}
 	s := string(rnd)
 	return s
 }
+```
 
 再次执行上述压测命令，可以看到压测结果为：
 
@@ -487,13 +491,13 @@ gc 394 @21.439s 1%: 0.066+0.41+0.018 ms clock, 0.26+0.50/0.36/0+0.075 ms cpu, 20
 
 ## 4 参考
 
-\[1\]Garbage Collection In Go : Part II - GC Traces， [https://www.ardanlabs.com/blog/2019/05/garbage-collection-in-go-part2-gctraces.html](https://www.ardanlabs.com/blog/2019/05/garbage-collection-in-go-part2-gctraces.html)
+[1]Garbage Collection In Go : Part II - GC Traces， [https://www.ardanlabs.com/blog/2019/05/garbage-collection-in-go-part2-gctraces.html](https://www.ardanlabs.com/blog/2019/05/garbage-collection-in-go-part2-gctraces.html)
 
-\[2\]Getting to Go: The Journey of Go's Garbage Collector, [https://blog.golang.org/ismmkeynote](https://blog.golang.org/ismmkeynote)
+[2]Getting to Go: The Journey of Go's Garbage Collector, [https://blog.golang.org/ismmkeynote](https://blog.golang.org/ismmkeynote)
 
-\[3\] Golang GC核心要点和度量方法, [https://w](https://wudaijun.com/2020/01/go-gc-keypoint-and-monitor/)[u](https://wudaijun.com/2020/01/go-gc-keypoint-and-monitor/)[daijun.com/2020/01/go-gc-keypoint-and-monitor/](https://wudaijun.com/2020/01/go-gc-keypoint-and-monitor/)
+[3] Golang GC核心要点和度量方法, [https://w](https://wudaijun.com/2020/01/go-gc-keypoint-and-monitor/)[u](https://wudaijun.com/2020/01/go-gc-keypoint-and-monitor/)[daijun.com/2020/01/go-gc-keypoint-and-monitor/](https://wudaijun.com/2020/01/go-gc-keypoint-and-monitor/)
 
-\[4\] Go memory ballast: How I learnt to stop worrying and love the heap, [https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap-26c2462549a2/](https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap-26c2462549a2/)
+[4] Go memory ballast: How I learnt to stop worrying and love the heap, [https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap-26c2462549a2/](https://blog.twitch.tv/en/2019/04/10/go-memory-ballast-how-i-learnt-to-stop-worrying-and-love-the-heap-26c2462549a2/)
 
 ## 5 附录
 

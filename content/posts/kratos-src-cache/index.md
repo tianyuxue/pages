@@ -30,8 +30,9 @@ Kratos提供了缓存相关的常用功能，见下表：
 
 Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于`tool/kartos-gen-bts/test-data/dao.bts.go`文件中的`Demos()`方法，具体含义可以参考代码中的注释：
 
+```
 // Demos get data from cache if miss will call source method, then add to cache.
-func (d \*dao) Demos(c context.Context, keys \[\]int64) (res map\[int64\]\*Demo, err error) {
+func (d *dao) Demos(c context.Context, keys []int64) (res map[int64]*Demo, err error) {
 	if len(keys) == 0 {
 		return
 	}
@@ -43,9 +44,9 @@ func (d \*dao) Demos(c context.Context, keys \[\]int64) (res map\[int64\]\*Demo,
 		err = nil
 	}
     // miss 用来存储缓存未命中的数据
-	var miss \[\]int64
-	for \_, key := range keys {
-		if (res == nil) || (res\[key\] == nil) {
+	var miss []int64
+	for _, key := range keys {
+		if (res == nil) || (res[key] == nil) {
 			miss = append(miss, key)
 		}
 	}
@@ -61,7 +62,7 @@ func (d \*dao) Demos(c context.Context, keys \[\]int64) (res map\[int64\]\*Demo,
 	if missLen == 0 {
 		return
 	}
-	missData := make(map\[int64\]\*Demo, missLen)
+	missData := make(map[int64]*Demo, missLen)
     // 统计缓存未命中的数量
         cache.MetricMisses.Add(float64(missLen), "bts:Demos")
 	var mutex sync.Mutex
@@ -71,12 +72,12 @@ func (d \*dao) Demos(c context.Context, keys \[\]int64) (res map\[int64\]\*Demo,
 	if missLen > 20 {
 		group.GOMAXPROCS(20)
 	}
-	var run = func(ms \[\]int64) {
+	var run = func(ms []int64) {
 		group.Go(func(ctx context.Context) (err error) {
 			data, err := d.RawDemos(ctx, ms)
 			mutex.Lock()
 			for k, v := range data {
-				missData\[k\] = v
+				missData[k] = v
 			}
 			mutex.Unlock()
 			return
@@ -87,25 +88,25 @@ func (d \*dao) Demos(c context.Context, keys \[\]int64) (res map\[int64\]\*Demo,
 		n = missLen / 2
 	)
 	for i = 0; i < n; i++ {
-		run(miss\[i\*2 : (i+1)\*2\])
+		run(miss[i*2 : (i+1)*2])
 	}
-	if len(miss\[i\*2:\]) > 0 {
-		run(miss\[i\*2:\])
+	if len(miss[i*2:]) > 0 {
+		run(miss[i*2:])
 	}
 	err = group.Wait()
 	if res == nil {
-		res = make(map\[int64\]\*Demo, len(keys))
+		res = make(map[int64]*Demo, len(keys))
 	}
 	for k, v := range missData {
-		res\[k\] = v
+		res[k] = v
 	}
 	if err != nil {
 		return
 	}
     // 数据库中不存在的数据也在缓存中存储一份默认值
-	for \_, key := range miss {
-		if res\[key\] == nil {
-			missData\[key\] = &Demo{ID: -1}
+	for _, key := range miss {
+		if res[key] == nil {
+			missData[key] = &Demo{ID: -1}
 		}
 	}
 	if !addCache {
@@ -117,6 +118,7 @@ func (d \*dao) Demos(c context.Context, keys \[\]int64) (res map\[int64\]\*Demo,
 	})
 	return
 }
+```
 
 ### 2.1 缓存穿透
 
@@ -130,6 +132,7 @@ Krato tool genbts 工具提供了配置项-`nullcache`来避免缓存穿透，�
 
 这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：
 
+```
 // A Group is a collection of goroutines working on subtasks that are part of
 // the same overall task.
 //
@@ -141,7 +144,7 @@ type Group struct {
 
 	workerOnce sync.Once
 	ch         chan func(ctx context.Context) error  // 存储待处理的任务
-	chs        \[\]func(ctx context.Context) error
+	chs        []func(ctx context.Context) error
 
 	ctx    context.Context
 	cancel func()  // 出错后的取消函数
@@ -150,7 +153,7 @@ type Group struct {
 ...
 
 // Go方法增加子任务
-func (g \*Group) Go(f func(ctx context.Context) error) {
+func (g *Group) Go(f func(ctx context.Context) error) {
 	g.wg.Add(1)
 	if g.ch != nil {
 		select {
@@ -164,9 +167,9 @@ func (g \*Group) Go(f func(ctx context.Context) error) {
 }
 
 // Wait方法等待所有子任务结束
-func (g \*Group) Wait() error {
+func (g *Group) Wait() error {
 	if g.ch != nil {
-		for \_, f := range g.chs {
+		for _, f := range g.chs {
 			g.ch <- f
 		}
 	}
@@ -179,6 +182,7 @@ func (g \*Group) Wait() error {
 	}
 	return g.err
 }
+```
 
 ### 2.3 异步添加缓存
 
@@ -186,8 +190,9 @@ func (g \*Group) Wait() error {
 
 fanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了**buffer类型的channel来存储任务**，其处理任务的核心代码为：
 
+```
 // New new a fanout struct.
-func New(name string, opts ...Option) \*Fanout {
+func New(name string, opts ...Option) *Fanout {
 	if name == "" {
 		name = "anonymous"
 	}
@@ -195,7 +200,7 @@ func New(name string, opts ...Option) \*Fanout {
 		worker: 1,
 		buffer: 1024,
 	}
-	for \_, op := range opts {
+	for _, op := range opts {
 		op(o)
 	}
 	c := &Fanout{
@@ -212,20 +217,21 @@ func New(name string, opts ...Option) \*Fanout {
 	return c
 }
 ...
-func (c \*Fanout) proc() {
+func (c *Fanout) proc() {
 	defer c.waiter.Done()
 	for {
 		select {
         // 循环处理channel中待处理的任务
 		case t := <-c.ch:
 			wrapFunc(t.f)(t.ctx)
-			\_metricChanSize.Set(float64(len(c.ch)), c.name)
-			\_metricCount.Inc(c.name)
+			_metricChanSize.Set(float64(len(c.ch)), c.name)
+			_metricCount.Inc(c.name)
 		case <-c.ctx.Done():
 			return
 		}
 	}
 }
+```
 
 ### 2.4 监控缓存命中率
 
@@ -236,45 +242,51 @@ func (c \*Fanout) proc() {
 
 具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：
 
-const \_metricNamespace = "cache"
+```
+const _metricNamespace = "cache"
 
 // be used in tool/kratos-gen-bts
 var (
 	MetricHits = metric.NewCounterVec(&metric.CounterVecOpts{
-		Namespace: \_metricNamespace,
+		Namespace: _metricNamespace,
 		Subsystem: "",
-		Name:      "hits\_total",
+		Name:      "hits_total",
 		Help:      "cache hits total.",
-		Labels:    \[\]string{"name"},
+		Labels:    []string{"name"},
 	})
 	MetricMisses = metric.NewCounterVec(&metric.CounterVecOpts{
-		Namespace: \_metricNamespace,
+		Namespace: _metricNamespace,
 		Subsystem: "",
-		Name:      "misses\_total",
+		Name:      "misses_total",
 		Help:      "cache misses total.",
-		Labels:    \[\]string{"name"},
+		Labels:    []string{"name"},
 	})
 )
+```
 
 ### 2.5 使用singleflight模式避免缓存失效引起的缓存雪崩
 
-缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。**"缓存雪崩**是指当缓存失效后引起**系统性能急剧下降**的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。**由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存**，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。"\[1\]
+缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。**"缓存雪崩**是指当缓存失效后引起**系统性能急剧下降**的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。**由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存**，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。"[1]
 
 针对这个问题，Kratos使用了`singleflight`模式（https://github.com/golang/sync/blob/master/singleflight/singleflight.go），如果一个key失效了，同一时间只允许一个线程执行缓存更新操作。这个方法限制了缓存更新的并发度，有助于解决缓存雪崩问题。
 
 要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下`-singleflight=true`配置：
 
-// bts: -sync=true -nullcache=&Demo{ID:-1} -check\_null\_code=$.ID==-1 -singleflight=true
-Demo(c context.Context, key int64) (\*Demo, error)
+```
+// bts: -sync=true -nullcache=&Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true
+Demo(c context.Context, key int64) (*Demo, error)
+```
 
 生成代码中增加了一个全局变量`cacheSingleFlights`限制回源请求的并发度：
 
-var cacheSingleFlights = \[1\]\*singleflight.Group{{}}
+```
+var cacheSingleFlights = [1]*singleflight.Group{{}}
+```
 
 然后在具体的回源代码中：
-
+```
 // Demo get data from cache if miss will call source method, then add to cache.
-func (d \*dao) Demo(c context.Context, key int64) (res \*Demo, err error) {
+func (d *dao) Demo(c context.Context, key int64) (res *Demo, err error) {
 	addCache := true
 	res, err = d.CacheDemo(c, key)
 	if err != nil {
@@ -292,12 +304,12 @@ func (d \*dao) Demo(c context.Context, key int64) (res \*Demo, err error) {
 	}
 	var rr interface{}
 	sf := d.cacheSFDemo(key)
-	rr, err, \_ = cacheSingleFlights\[0\].Do(sf, func() (r interface{}, e error) {
+	rr, err, _ = cacheSingleFlights[0].Do(sf, func() (r interface{}, e error) {
 		cache.MetricMisses.Inc("bts:Demo")
 		r, e = d.RawDemo(c, key)
 		return
 	})
-	res = rr.(\*Demo)
+	res = rr.(*Demo)
 	if err != nil {
 		return
 	}
@@ -311,6 +323,7 @@ func (d \*dao) Demo(c context.Context, key int64) (res \*Demo, err error) {
 	d.AddCacheDemo(c, key, miss)
 	return
 }
+```
 
 从18到28行的调用可以看到，Kratos使用全局变量cacheSingleFlights限制了数据库回源请求RawDemo()的并发度，如果看一下singleflight的实现，可以看到其**内部使用了map存储要执行的函数**，确保在同一时间，同一个函数只被执行一次。
 
@@ -322,4 +335,4 @@ singleflight模式只限制了，在缓存失效时，一个进程内只有一�
 
 ## 引用
 
-\[1\] 高性能缓存架构 https://time.geekbang.org/column/article/8640
+[1] 高性能缓存架构 https://time.geekbang.org/column/article/8640

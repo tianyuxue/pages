@@ -46,14 +46,14 @@ Kratos从DAO层的代码层面实现了对MySQL读写分离的支持，并未使
 pkg/database/sql/mysql.go
 type Config struct {
     DSN          string          // write data source name.
-    ReadDSN      \[\]string        // read data source name
+    ReadDSN      []string        // read data source name
     Active       int             // pool
     Idle         int             // pool
     IdleTimeout  time.Duration   // connect max life time.
     QueryTimeout time.Duration   // query sql timeout
     ExecTimeout  time.Duration   // execute sql timeout
     TranTimeout  time.Duration   // transaction sql timeout
-    Breaker      \*breaker.Config // breaker
+    Breaker      *breaker.Config // breaker
 }
 ```
 
@@ -61,10 +61,10 @@ type Config struct {
 
 ```
 type DB struct {
-write  \*conn   //主节点连接池，conn定义见下文
-read   \[\]\*conn //从节点连接池
+write  *conn   //主节点连接池，conn定义见下文
+read   []*conn //从节点连接池
 idx    int64   // 用于选取从节点的id
-master \*DB      //MySQL的主节点
+master *DB      //MySQL的主节点
 }
 ```
 
@@ -73,9 +73,9 @@ DB对象使用`master`字段冗余存储主节点的信息，用来支持一些�
 ```
 // conn database connection
 type conn struct {
-    \*sql.DB  // 对Golang SDK连接池的封装，用来支持MySQL读写分离
+    *sql.DB  // 对Golang SDK连接池的封装，用来支持MySQL读写分离
     breaker breaker.Breaker
-    conf    \*Config
+    conf    *Config
     addr    string
 }
 ```
@@ -85,12 +85,12 @@ type conn struct {
 ```
 // Query executes a query that returns rows, typically a SELECT. The args are
 // for any placeholder parameters in the query.
-func (db \*DB) Query(c context.Context, query string, args ...interface{}) (rows \*Rows, err error) {
+func (db *DB) Query(c context.Context, query string, args ...interface{}) (rows *Rows, err error) {
         // 获取要读取哪一个从库
 	idx := db.readIndex()
 	for i := range db.read {
 		// 依次尝试每一个从库, 只要一个成功了就返回
-		if rows, err = db.read\[(idx+i)%len(db.read)\].query(c, query, args...); !ecode.EqualError(ecode.ServiceUnavailable, err) {
+		if rows, err = db.read[(idx+i)%len(db.read)].query(c, query, args...); !ecode.EqualError(ecode.ServiceUnavailable, err) {
 			return
 		}
 	}
@@ -101,7 +101,7 @@ func (db \*DB) Query(c context.Context, query string, args ...interface{}) (rows
 ...
 
 // 简单的使用轮询策略选择要读取的从库
-func (db \*DB) readIndex() int {
+func (db *DB) readIndex() int {
 	if len(db.read) == 0 {
 		return 0
 	}
@@ -116,22 +116,22 @@ func (db \*DB) readIndex() int {
 
 ```
 // 启动MySQL事务
-func (db \*DB) Begin(c context.Context) (tx \*Tx, err error) {
+func (db *DB) Begin(c context.Context) (tx *Tx, err error) {
 	return db.write.begin(c)
 }
 
 // 执行无返回结果的SQL语句
-func (db \*DB) Exec(c context.Context, query string, args ...interface{}) (res sql.Result, err error) {
+func (db *DB) Exec(c context.Context, query string, args ...interface{}) (res sql.Result, err error) {
 	return db.write.exec(c, query, args...)
 }
 
 // 创建Prepared Statement，如果出错会返回错误信息
-func (db \*DB) Prepare(query string) (\*Stmt, error) {
+func (db *DB) Prepare(query string) (*Stmt, error) {
 	return db.write.prepare(query)
 }
 
 // 创建Prepared Statement，如果出错会后台重试
-func (db \*DB) Prepared(query string) (stmt \*Stmt) {
+func (db *DB) Prepared(query string) (stmt *Stmt) {
 	return db.write.prepared(query)
 }
 
@@ -140,9 +140,10 @@ func (db \*DB) Prepared(query string) (stmt \*Stmt) {
 
 再看一下prepare statement的创建, Kratos的提供了`Prepared()`方法，如果创建prepare statement错误，那么启动一个goroutine不断重试，直到创建成功了，就用cas方法把prepare statement存储在Kratos封装的`Stmt`对象中， 个人感觉这样不够优雅，不知道b站内部是怎么用这个方法的：
 
+```
 // Stmt prepared stmt.
 type Stmt struct {
-	db    \*conn
+	db    *conn
 	tx    bool
 	query string
 	stmt  atomic.Value  // 存储创建好的prepare statement
@@ -151,7 +152,7 @@ type Stmt struct {
 
 ...
 
-func (db \*conn) prepare(query string) (\*Stmt, error) {
+func (db *conn) prepare(query string) (*Stmt, error) {
 	defer slowLog(fmt.Sprintf("Prepare query(%s)", query), time.Now())
 	stmt, err := db.Prepare(query)
 	if err != nil {
@@ -163,7 +164,7 @@ func (db \*conn) prepare(query string) (\*Stmt, error) {
 	return st, nil
 }
 
-func (db \*conn) prepared(query string) (stmt \*Stmt) {
+func (db *conn) prepared(query string) (stmt *Stmt) {
 	defer slowLog(fmt.Sprintf("Prepared query(%s)", query), time.Now())
 	stmt = &Stmt{query: query, db: db}
 	s, err := db.Prepare(query)
@@ -185,6 +186,7 @@ func (db \*conn) prepared(query string) (stmt \*Stmt) {
 	}()
 	return
 }
+```
 
 除了MySQL读写分离，Kratos对其他方法的封装主要是为了提供慢查询日志，trace日志，监控信息和熔断保护这四个功能。
 
@@ -192,8 +194,9 @@ func (db \*conn) prepared(query string) (stmt \*Stmt) {
 
 Kratos在每个与数据库交互方法中记录了慢查询日志，结合关键字`defer`，其实现方法非常简单：
 
+```
 ...
-func (db \*conn) Query(c context.Context) (tx \*Tx, err error) {
+func (db *conn) Query(c context.Context) (tx *Tx, err error) {
 	// 获取当前时间，通过defer来确定结束时间
         now := time.Now()
 	defer slowLog("Begin", now)
@@ -203,10 +206,11 @@ func (db \*conn) Query(c context.Context) (tx \*Tx, err error) {
 // 时间超过阈值，就打印一条警告记录
 func slowLog(statement string, now time.Time) {
 	du := time.Since(now)
-	if du > \_slowLogDuration {
-		log.Warn("%s slow log statement: %s time: %v", \_family, statement, du)
+	if du > _slowLogDuration {
+		log.Warn("%s slow log statement: %s time: %v", _family, statement, du)
 	}
 }
+```
 
 与数据库交互的每个方法中，Kratos都加入了上述代码片段记录慢查询的警告日志。
 
@@ -220,46 +224,47 @@ func slowLog(statement string, now time.Time) {
 - 当前数据库连接数
 
 具体的代码如下：
-
+```
 pkg/database/sql/metrics.go
 
 package sql
 
 import "github.com/go-kratos/kratos/pkg/stat/metric"
 
-const namespace = "mysql\_client"
+const namespace = "mysql_client"
 
 var (
-	\_metricReqDur = metric.NewHistogramVec(&metric.HistogramVecOpts{
+	_metricReqDur = metric.NewHistogramVec(&metric.HistogramVecOpts{
 		Namespace: namespace,
 		Subsystem: "requests",
-		Name:      "duration\_ms",
+		Name:      "duration_ms",
 		Help:      "mysql client requests duration(ms).",
-		Labels:    \[\]string{"name", "addr", "command"},
-		Buckets:   \[\]float64{5, 10, 25, 50, 100, 250, 500, 1000, 2500},
+		Labels:    []string{"name", "addr", "command"},
+		Buckets:   []float64{5, 10, 25, 50, 100, 250, 500, 1000, 2500},
 	})
-	\_metricReqErr = metric.NewCounterVec(&metric.CounterVecOpts{
+	_metricReqErr = metric.NewCounterVec(&metric.CounterVecOpts{
 		Namespace: namespace,
 		Subsystem: "requests",
-		Name:      "error\_total",
+		Name:      "error_total",
 		Help:      "mysql client requests error count.",
-		Labels:    \[\]string{"name", "addr", "command", "error"},
+		Labels:    []string{"name", "addr", "command", "error"},
 	})
-	\_metricConnTotal = metric.NewCounterVec(&metric.CounterVecOpts{
+	_metricConnTotal = metric.NewCounterVec(&metric.CounterVecOpts{
 		Namespace: namespace,
 		Subsystem: "connections",
 		Name:      "total",
 		Help:      "mysql client connections total count.",
-		Labels:    \[\]string{"name", "addr", "state"},
+		Labels:    []string{"name", "addr", "state"},
 	})
-	\_metricConnCurrent = metric.NewGaugeVec(&metric.GaugeVecOpts{
+	_metricConnCurrent = metric.NewGaugeVec(&metric.GaugeVecOpts{
 		Namespace: namespace,
 		Subsystem: "connections",
 		Name:      "current",
 		Help:      "mysql client connections current.",
-		Labels:    \[\]string{"name", "addr", "state"},
+		Labels:    []string{"name", "addr", "state"},
 	})
 )
+```
 
 Kratos已经把上面监控数据嵌入在封装好的数据库交互的方法中，例如数据库读写发生错误后会调用`_metricReqErr.Inc()`, 读写完成后会调用`_metricReqDur.Observe()`。
 
@@ -267,6 +272,7 @@ Kratos已经把上面监控数据嵌入在封装好的数据库交互的方法�
 
 Kratos的DB对象内置了断路器，存储在DB对象的breaker字段中，断路器的接口很简单，主要提供了如下三个方法：
 
+```
 // Breaker 定义了断路器接口
 type Breaker interface {
 	Allow() error
@@ -289,34 +295,37 @@ if(respErr != nil){
 
 Kratos在与数据库交互前会检查断路器状态，执行完SQL语句后更新断路器状态，例如在exec()方法中：
 
-func (db \*conn) exec(c context.Context, query string, args ...interface{}) (res sql.Result, err error) {
+func (db *conn) exec(c context.Context, query string, args ...interface{}) (res sql.Result, err error) {
         ...
         // 执行方法前确认断路器状态
 	if err = db.breaker.Allow(); err != nil {
-		\_metricReqErr.Inc(db.addr, db.addr, "exec", "breaker")
+		_metricReqErr.Inc(db.addr, db.addr, "exec", "breaker")
 		return
 	}
-	\_, c, cancel := db.conf.ExecTimeout.Shrink(c)
+	_, c, cancel := db.conf.ExecTimeout.Shrink(c)
 	res, err = db.ExecContext(c, query, args...)
 	cancel()
         // 方法执行完毕后更新断路器状态
 	db.onBreaker(&err)
-	\_metricReqDur.Observe(int64(time.Since(now)/time.Millisecond), db.addr, db.addr, "exec")
+	_metricReqDur.Observe(int64(time.Since(now)/time.Millisecond), db.addr, db.addr, "exec")
 	if err != nil {
 		err = errors.Wrapf(err, "exec:%s, args:%+v", query, args)
 	}
 	return
 }
+```
 
 ### 2.5 trace信息
 
 Kratos通过context来传递trace信息，见如下代码：
 
+```
 if t, ok := trace.FromContext(c); ok {
-        t = t.Fork(\_family, "exec")
+        t = t.Fork(_family, "exec")
 	t.SetTag(trace.String(trace.TagAddress, db.addr), trace.String(trace.TagComment, query))
 	defer t.Finish(&amp;err)
 }
+```
 
 在从context获取了trace的记录单元后，同样使用了defer关键字记录了日志的终止信息。上述代码片段在每一个数据库交互方法中都存在，这样就实现了在读写数据库层面的trace信息记录。
 
