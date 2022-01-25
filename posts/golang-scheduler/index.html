@@ -27,7 +27,7 @@
 本文的讨论基于golang 1.15.4版本
 "><meta itemprop=datePublished content="2020-12-26T00:00:00+00:00">
 <meta itemprop=dateModified content="2020-12-26T00:00:00+00:00">
-<meta itemprop=wordCount content="1456">
+<meta itemprop=wordCount content="1457">
 <meta itemprop=keywords content="golang,调度器,"><meta name=twitter:card content="summary">
 <meta name=twitter:title content="关于Golang调度器的一些分析">
 <meta name=twitter:description content="
@@ -87,7 +87,7 @@ jitianyu
 </p>
 <time class="f6 mv4 dib tracked" datetime=2020-12-26T00:00:00Z>December 26, 2020</time>
 <span class="f6 mv4 dib tracked"> - 7 minutes read </span>
-<span class="f6 mv4 dib tracked"> - 1456 words </span>
+<span class="f6 mv4 dib tracked"> - 1457 words </span>
 </header>
 <div class="nested-copy-line-height lh-copy serif f4 nested-links nested-img mid-gray pr4-l w-two-thirds-l"><blockquote>
 <p>本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法</p>
@@ -150,62 +150,66 @@ jitianyu
 <p>exitsyscall() 函数</p>
 <h3 id=211-验证阻塞式系统调用导致的m与p解绑>2.1.1 验证阻塞式系统调用导致的M与P解绑</h3>
 <p>下面通过一个简单的示例来验证上面所说的理论是否正确，示例代码如下，代码功能可以参考注释：</p>
-<p>package main</p>
-<p>import (
-&ldquo;fmt&rdquo;
-&ldquo;net&rdquo;
-&ldquo;sync&rdquo;
-&ldquo;time&rdquo;
-)</p>
-<p>func main() {
-stopChan := make(chan struct{})
-wg := sync.WaitGroup{}
-wg.Add(1)
-// 2秒钟后停止 InfnityLoop
-go func() {
-timer := time.NewTimer(2 * time.Second)
-&lt;-timer.C
-close(stopChan)
-}()</p>
-<pre><code>go func() {
-    defer wg.Done()
-    sysCall(stopChan)
-}() 
+<pre tabindex=0><code>package main
 
-wg.Wait()
-</code></pre>
-<p>}
+import (
+    &quot;fmt&quot;
+    &quot;net&quot;
+    &quot;sync&quot;
+    &quot;time&quot;
+)
+
+func main() {
+    stopChan := make(chan struct{})
+    wg := sync.WaitGroup{}
+    wg.Add(1)
+	// 2秒钟后停止 InfnityLoop
+    go func() {
+        timer := time.NewTimer(2 * time.Second)
+        &lt;-timer.C
+        close(stopChan)
+    }() 
+
+    go func() {
+        defer wg.Done()
+        sysCall(stopChan)
+    }() 
+
+    wg.Wait()
+}
+
 /**
-* sysCall函数首先执行一个无限循环模拟cpu占用
-* 2秒后停止循环，进行一个阻塞5秒的iowait系统调用
-* 系统调用完成后继续进行无限循环
-*/
+ *  sysCall函数首先执行一个无限循环模拟cpu占用
+ *  2秒后停止循环，进行一个阻塞5秒的iowait系统调用
+ *  系统调用完成后继续进行无限循环
+ */
 func sysCall(stopChan chan struct{}) {
-// 首先开始无限循环，模拟cpu占用
-infinitLoop(stopChan)</p>
-<pre><code>fmt.Println(&quot;begin syscall&quot;)
-// 这里通过对一个不存在的地址进行tcp连接来模拟耗时的阻塞式系统调用
-\_, err := net.DialTimeout(&quot;tcp&quot;, &quot;172.20.4.111:80&quot;, 5\*time.Second)
-if err != nil {
-    fmt.Println(err.Error())
-}   
-fmt.Println(&quot;finish syscall&quot;)
+    // 首先开始无限循环，模拟cpu占用
+    infinitLoop(stopChan)
 
-// 系统调用结束后继续循环，模拟cpu占用
-ch := make(chan struct{})
-infinitLoop(ch)
-</code></pre>
-<p>}</p>
-<p>func infinitLoop(stopChan chan struct{}) {
-for {
-select {
-case &lt;-stopChan:
-return
-default:
-}<br>
-}<br>
-}</p>
-<p>执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：</p>
+    fmt.Println(&quot;begin syscall&quot;)
+    // 这里通过对一个不存在的地址进行tcp连接来模拟耗时的阻塞式系统调用
+    _, err := net.DialTimeout(&quot;tcp&quot;, &quot;172.20.4.111:80&quot;, 5 *time.Second)
+    if err != nil {
+        fmt.Println(err.Error())
+    }   
+    fmt.Println(&quot;finish syscall&quot;)
+
+    // 系统调用结束后继续循环，模拟cpu占用
+    ch := make(chan struct{})
+    infinitLoop(ch)
+}
+
+func infinitLoop(stopChan chan struct{}) {
+    for {
+        select {
+        case &lt;-stopChan:
+            return
+        default:
+        }   
+    }   
+}
+</code></pre><p>执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：</p>
 <pre tabindex=0><code>go build main.go
 GOMAXPROCS=2 GODEBUG=schedtrace=1000,scheddetail=1 ./main
 </code></pre><p>程序执行大概10秒后按下<code>ctrl + c</code> 终止程序，可以得到如下输出(各个字段的具体含义可参考附录)：</p>
@@ -248,26 +252,27 @@ GOMAXPROCS=2 GODEBUG=schedtrace=1000,scheddetail=1 ./main
 </ul>
 <p>可以看出，<code>netpooler</code>实际上是一个非阻塞调用与阻塞调用之间的转换器，将非阻塞的系统调用成功应用在了<strong>golang使用阻塞goroutine+channel的编程范式上了。</strong> 而这种由netpooler引发的调度，实际上<strong>操作系统的内核线程是无感的，从内核线程的视角看，执行的都是连续的内核空间代码。</strong></p>
 <p>还有一个问题，就是netpooler是什么时候启动的呢？</p>
-<p>runtime/proc.go:110</p>
-<p>func main() {
-&mldr;</p>
-<pre><code>if GOARCH != &quot;wasm&quot; { // no threads on wasm yet, so no sysmon
-    systemstack(func() {
-        newm(sysmon, nil) // 在程序启动时候，启动sysmon m
-    })
-}
+<pre tabindex=0><code>runtime/proc.go:110
 
-// Lock the main goroutine onto this, the main OS thread,
-// during initialization. Most programs won't care, but a few
-// do require certain calls to be made by the main thread.
-// Those can arrange for main.main to run in the main thread
-// by calling runtime.LockOSThread during initialization
-// to preserve the lock.
-lockOSThread()
-...
-</code></pre>
-<p>}</p>
-<ul>
+func main() {
+    ...
+
+    if GOARCH != &quot;wasm&quot; { // no threads on wasm yet, so no sysmon
+        systemstack(func() {
+            newm(sysmon, nil) // 在程序启动时候，启动sysmon m
+        })
+    }
+
+    // Lock the main goroutine onto this, the main OS thread,
+    // during initialization. Most programs won't care, but a few
+    // do require certain calls to be made by the main thread.
+    // Those can arrange for main.main to run in the main thread
+    // by calling runtime.LockOSThread during initialization
+    // to preserve the lock.
+    lockOSThread()
+    ...
+}
+</code></pre><ul>
 <li>编译好的程序入口位于"<code>**runtime/proc.go**"</code>， 执行<code>main()</code>函数时候会启动<code>sysmon</code>, 并绑定到一个M上执行</li>
 <li><code>sysmon()</code>函数会启动<code>netpoller</code></li>
 </ul>
@@ -298,120 +303,121 @@ lockOSThread()
 <h2 id=附录>附录：</h2>
 <h3 id=scheddetail-参数说明>scheddetail 参数说明</h3>
 <p>设置了<code>godebug=scheddetail=1</code> 情况下，假设示例输出如下：</p>
-<p>$ GODEBUG=scheddetail=1,schedtrace=1000 ./main
+<pre tabindex=0><code>$ GODEBUG=scheddetail=1,schedtrace=1000 ./main
 SCHED 1000ms: gomaxprocs=4 idleprocs=0 threads=5 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0
-P0: status=1 schedtick=2 syscalltick=0 m=3 runqsize=3 gfreecnt=0
-P1: status=1 schedtick=2 syscalltick=0 m=4 runqsize=1 gfreecnt=0
-P2: status=1 schedtick=2 syscalltick=0 m=0 runqsize=1 gfreecnt=0
-P3: status=1 schedtick=1 syscalltick=0 m=2 runqsize=1 gfreecnt=0
-M4: p=1 curg=18 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
-M3: p=0 curg=22 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
-M2: p=3 curg=24 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
-M1: p=-1 curg=-1 mallocing=0 throwing=0 preemptoff= locks=1 dying=0 spinning=false blocked=false lockedg=-1
-M0: p=2 curg=26 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
-G1: status=4(semacquire) m=-1 lockedm=-1
-G2: status=4(force gc (idle)) m=-1 lockedm=-1
-G3: status=4(GC sweep wait) m=-1 lockedm=-1
-G17: status=1() m=-1 lockedm=-1
-G18: status=2() m=4 lockedm=-1
-G19: status=1() m=-1 lockedm=-1
-G20: status=1() m=-1 lockedm=-1
-G21: status=1() m=-1 lockedm=-1
-G22: status=2() m=3 lockedm=-1
-G23: status=1() m=-1 lockedm=-1
-G24: status=2() m=2 lockedm=-1
-G25: status=1() m=-1 lockedm=-1
-G26: status=2() m=0 lockedm=-1</p>
-<p>G的信息如下：</p>
+  P0: status=1 schedtick=2 syscalltick=0 m=3 runqsize=3 gfreecnt=0
+  P1: status=1 schedtick=2 syscalltick=0 m=4 runqsize=1 gfreecnt=0
+  P2: status=1 schedtick=2 syscalltick=0 m=0 runqsize=1 gfreecnt=0
+  P3: status=1 schedtick=1 syscalltick=0 m=2 runqsize=1 gfreecnt=0
+  M4: p=1 curg=18 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M3: p=0 curg=22 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M2: p=3 curg=24 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  M1: p=-1 curg=-1 mallocing=0 throwing=0 preemptoff= locks=1 dying=0 spinning=false blocked=false lockedg=-1
+  M0: p=2 curg=26 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1
+  G1: status=4(semacquire) m=-1 lockedm=-1
+  G2: status=4(force gc (idle)) m=-1 lockedm=-1
+  G3: status=4(GC sweep wait) m=-1 lockedm=-1
+  G17: status=1() m=-1 lockedm=-1
+  G18: status=2() m=4 lockedm=-1
+  G19: status=1() m=-1 lockedm=-1
+  G20: status=1() m=-1 lockedm=-1
+  G21: status=1() m=-1 lockedm=-1
+  G22: status=2() m=3 lockedm=-1
+  G23: status=1() m=-1 lockedm=-1
+  G24: status=2() m=2 lockedm=-1
+  G25: status=1() m=-1 lockedm=-1
+  G26: status=2() m=0 lockedm=-1
+</code></pre><p>G的信息如下：</p>
 <ul>
 <li>status： G的状态</li>
 <li>m：属于哪那个M</li>
 <li>lockedm：M是否被锁定</li>
 <li>G的状态表位于文件<code>runtime2.go</code></li>
 </ul>
-<p>// defined constants
+<pre tabindex=0><code>// defined constants
 const (
-// G status
-// &mldr;
-// _Gidle means this goroutine was just allocated and has not
-// yet been initialized.
-_Gidle = iota // 0
-// _Grunnable means this goroutine is on a run queue. It is
-// not currently executing user code. The stack is not owned.
-_Grunnable // 1
-// _Grunning means this goroutine may execute user code. The
-// stack is owned by this goroutine. It is not on a run queue.
-// It is assigned an M and a P (g.m and g.m.p are valid).
-_Grunning // 2
-// _Gsyscall means this goroutine is executing a system call.
-// It is not executing user code. The stack is owned by this
-// goroutine. It is not on a run queue. It is assigned an M.
-_Gsyscall // 3
-// _Gwaiting means this goroutine is blocked in the runtime.
-// It is not executing user code. It is not on a run queue,
-// but should be recorded somewhere (e.g., a channel wait
-// queue) so it can be ready()d when necessary. The stack is
-// not owned *except* that a channel operation may read or
-// write parts of the stack under the appropriate channel
-// lock. Otherwise, it is not safe to access the stack after a
-// goroutine enters _Gwaiting (e.g., it may get moved).
-_Gwaiting // 4
-// _Gmoribund_unused is currently unused, but hardcoded in gdb
-// scripts.
-_Gmoribund_unused // 5
-// _Gdead means this goroutine is currently unused. It may be
-// just exited, on a free list, or just being initialized. It
-// is not executing user code. It may or may not have a stack
-// allocated. The G and its stack (if any) are owned by the M
-// that is exiting the G or that obtained the G from the free
-// list.
-_Gdead // 6
-// _Genqueue_unused is currently unused.
-_Genqueue_unused // 7
-// _Gcopystack means this goroutine&rsquo;s stack is being moved. It
-// is not executing user code and is not on a run queue. The
-// stack is owned by the goroutine that put it in _Gcopystack.
-_Gcopystack // 8
-// _Gpreempted means this goroutine stopped itself for a
-// suspendG preemption. It is like _Gwaiting, but nothing is
-// yet responsible for ready()ing it. Some suspendG must CAS
-// the status to _Gwaiting to take responsibility for
-// ready()ing this G.
-_Gpreempted // 9</p>
-<ul>
+	// G status
+	// ...
+	// _Gidle means this goroutine was just allocated and has not
+	// yet been initialized.
+	_Gidle = iota // 0
+	// _Grunnable means this goroutine is on a run queue. It is
+	// not currently executing user code. The stack is not owned.
+	_Grunnable // 1
+	// _Grunning means this goroutine may execute user code. The
+	// stack is owned by this goroutine. It is not on a run queue.
+	// It is assigned an M and a P (g.m and g.m.p are valid).
+	_Grunning // 2
+	// _Gsyscall means this goroutine is executing a system call.
+	// It is not executing user code. The stack is owned by this
+	// goroutine. It is not on a run queue. It is assigned an M.
+	_Gsyscall // 3
+	// _Gwaiting means this goroutine is blocked in the runtime.
+	// It is not executing user code. It is not on a run queue,
+	// but should be recorded somewhere (e.g., a channel wait
+	// queue) so it can be ready()d when necessary. The stack is
+	// not owned *except* that a channel operation may read or
+	// write parts of the stack under the appropriate channel
+	// lock. Otherwise, it is not safe to access the stack after a
+	// goroutine enters _Gwaiting (e.g., it may get moved).
+	_Gwaiting // 4
+	// _Gmoribund_unused is currently unused, but hardcoded in gdb
+	// scripts.
+	_Gmoribund_unused // 5
+	// _Gdead means this goroutine is currently unused. It may be
+	// just exited, on a free list, or just being initialized. It
+	// is not executing user code. It may or may not have a stack
+	// allocated. The G and its stack (if any) are owned by the M
+	// that is exiting the G or that obtained the G from the free
+	// list.
+	_Gdead // 6
+	// _Genqueue_unused is currently unused.
+	_Genqueue_unused // 7
+	// _Gcopystack means this goroutine's stack is being moved. It
+	// is not executing user code and is not on a run queue. The
+	// stack is owned by the goroutine that put it in _Gcopystack.
+	_Gcopystack // 8
+	// _Gpreempted means this goroutine stopped itself for a
+	// suspendG preemption. It is like _Gwaiting, but nothing is
+	// yet responsible for ready()ing it. Some suspendG must CAS
+	// the status to _Gwaiting to take responsibility for
+	// ready()ing this G.
+	_Gpreempted // 9
+</code></pre><ul>
 <li>G阻塞的原因如下</li>
 </ul>
-<p>runtime2.go</p>
-<p>const (
-waitReasonZero waitReason = iota // ""
-waitReasonGCAssistMarking // &ldquo;GC assist marking&rdquo;
-waitReasonIOWait // &ldquo;IO wait&rdquo;
-waitReasonChanReceiveNilChan // &ldquo;chan receive (nil chan)&rdquo;
-waitReasonChanSendNilChan // &ldquo;chan send (nil chan)&rdquo;
-waitReasonDumpingHeap // &ldquo;dumping heap&rdquo;
-waitReasonGarbageCollection // &ldquo;garbage collection&rdquo;
-waitReasonGarbageCollectionScan // &ldquo;garbage collection scan&rdquo;
-waitReasonPanicWait // &ldquo;panicwait&rdquo;
-waitReasonSelect // &ldquo;select&rdquo;
-waitReasonSelectNoCases // &ldquo;select (no cases)&rdquo;
-waitReasonGCAssistWait // &ldquo;GC assist wait&rdquo;
-waitReasonGCSweepWait // &ldquo;GC sweep wait&rdquo;
-waitReasonGCScavengeWait // &ldquo;GC scavenge wait&rdquo;
-waitReasonChanReceive // &ldquo;chan receive&rdquo;
-waitReasonChanSend // &ldquo;chan send&rdquo;
-waitReasonFinalizerWait // &ldquo;finalizer wait&rdquo;
-waitReasonForceGCIdle // &ldquo;force gc (idle)&rdquo;
-waitReasonSemacquire // &ldquo;semacquire&rdquo;
-waitReasonSleep // &ldquo;sleep&rdquo;
-waitReasonSyncCondWait // &ldquo;sync.Cond.Wait&rdquo;
-waitReasonTimerGoroutineIdle // &ldquo;timer goroutine (idle)&rdquo;
-waitReasonTraceReaderBlocked // &ldquo;trace reader (blocked)&rdquo;
-waitReasonWaitForGCCycle // &ldquo;wait for GC cycle&rdquo;
-waitReasonGCWorkerIdle // &ldquo;GC worker (idle)&rdquo;
-waitReasonPreempted // &ldquo;preempted&rdquo;
-waitReasonDebugCall // &ldquo;debug call&rdquo;
-)</p>
-<p>M的信息如下：</p>
+<pre tabindex=0><code>runtime2.go
+
+const (
+waitReasonZero                  waitReason = iota // &quot;&quot;
+waitReasonGCAssistMarking                         // &quot;GC assist marking&quot;
+waitReasonIOWait                                  // &quot;IO wait&quot;
+waitReasonChanReceiveNilChan                      // &quot;chan receive (nil chan)&quot;
+waitReasonChanSendNilChan                         // &quot;chan send (nil chan)&quot;
+waitReasonDumpingHeap                             // &quot;dumping heap&quot;
+waitReasonGarbageCollection                       // &quot;garbage collection&quot;
+waitReasonGarbageCollectionScan                   // &quot;garbage collection scan&quot;
+waitReasonPanicWait                               // &quot;panicwait&quot;
+waitReasonSelect                                  // &quot;select&quot;
+waitReasonSelectNoCases                           // &quot;select (no cases)&quot;
+waitReasonGCAssistWait                            // &quot;GC assist wait&quot;
+waitReasonGCSweepWait                             // &quot;GC sweep wait&quot;
+waitReasonGCScavengeWait                          // &quot;GC scavenge wait&quot;
+waitReasonChanReceive                             // &quot;chan receive&quot;
+waitReasonChanSend                                // &quot;chan send&quot;
+waitReasonFinalizerWait                           // &quot;finalizer wait&quot;
+waitReasonForceGCIdle                             // &quot;force gc (idle)&quot;
+waitReasonSemacquire                              // &quot;semacquire&quot;
+waitReasonSleep                                   // &quot;sleep&quot;
+waitReasonSyncCondWait                            // &quot;sync.Cond.Wait&quot;
+waitReasonTimerGoroutineIdle                      // &quot;timer goroutine (idle)&quot;
+waitReasonTraceReaderBlocked                      // &quot;trace reader (blocked)&quot;
+waitReasonWaitForGCCycle                          // &quot;wait for GC cycle&quot;
+waitReasonGCWorkerIdle                            // &quot;GC worker (idle)&quot;
+waitReasonPreempted                               // &quot;preempted&quot;
+waitReasonDebugCall                               // &quot;debug call&quot;
+)
+</code></pre><p>M的信息如下：</p>
 <ul>
 <li>P: 当前与哪个P绑定</li>
 <li>curg: 当前执行哪个G</li>
@@ -430,50 +436,51 @@ waitReasonDebugCall // &ldquo;debug call&rdquo;
 <li>gfreecnt: 可用的 G (Gdead state).</li>
 <li>P的状态表如下：</li>
 </ul>
-<p>const (
-// P status
-// _Pidle means a P is not being used to run user code or the
-// scheduler. Typically, it&rsquo;s on the idle P list and available
-// to the scheduler, but it may just be transitioning between
-// other states.
-//
-// The P is owned by the idle list or by whatever is
-// transitioning its state. Its run queue is empty.
-_Pidle = iota
-// _Prunning means a P is owned by an M and is being used to
-// run user code or the scheduler. Only the M that owns this P
-// is allowed to change the P&rsquo;s status from _Prunning. The M
-// may transition the P to _Pidle (if it has no more work to
-// do), _Psyscall (when entering a syscall), or _Pgcstop (to
-// halt for the GC). The M may also hand ownership of the P
-// off directly to another M (e.g., to schedule a locked G).
-_Prunning
-// _Psyscall means a P is not running user code. It has
-// affinity to an M in a syscall but is not owned by it and
-// may be stolen by another M. This is similar to _Pidle but
-// uses lightweight transitions and maintains M affinity.
-//
-// Leaving _Psyscall must be done with a CAS, either to steal
-// or retake the P. Note that there&rsquo;s an ABA hazard: even if
-// an M successfully CASes its original P back to _Prunning
-// after a syscall, it must understand the P may have been
-// used by another M in the interim.
-_Psyscall
-// _Pgcstop means a P is halted for STW and owned by the M
-// that stopped the world. The M that stopped the world
-// continues to use its P, even in _Pgcstop. Transitioning
-// from _Prunning to _Pgcstop causes an M to release its P and
-// park.
-//
-// The P retains its run queue and startTheWorld will restart
-// the scheduler on Ps with non-empty run queues.
-_Pgcstop
-// _Pdead means a P is no longer used (GOMAXPROCS shrank). We
-// reuse Ps if GOMAXPROCS increases. A dead P is mostly
-// stripped of its resources, though a few things remain
-// (e.g., trace buffers).
-_Pdead
-)</p><div class="mt6 instapaper_ignoref">
+<pre tabindex=0><code>const (
+	// P status
+	// _Pidle means a P is not being used to run user code or the
+	// scheduler. Typically, it's on the idle P list and available
+	// to the scheduler, but it may just be transitioning between
+	// other states.
+	//
+	// The P is owned by the idle list or by whatever is
+	// transitioning its state. Its run queue is empty.
+	_Pidle = iota
+	// _Prunning means a P is owned by an M and is being used to
+	// run user code or the scheduler. Only the M that owns this P
+	// is allowed to change the P's status from _Prunning. The M
+	// may transition the P to _Pidle (if it has no more work to
+	// do), _Psyscall (when entering a syscall), or _Pgcstop (to
+	// halt for the GC). The M may also hand ownership of the P
+	// off directly to another M (e.g., to schedule a locked G).
+	_Prunning
+	// _Psyscall means a P is not running user code. It has
+	// affinity to an M in a syscall but is not owned by it and
+	// may be stolen by another M. This is similar to _Pidle but
+	// uses lightweight transitions and maintains M affinity.
+	//
+	// Leaving _Psyscall must be done with a CAS, either to steal
+	// or retake the P. Note that there's an ABA hazard: even if
+	// an M successfully CASes its original P back to _Prunning
+	// after a syscall, it must understand the P may have been
+	// used by another M in the interim.
+	_Psyscall
+	// _Pgcstop means a P is halted for STW and owned by the M
+	// that stopped the world. The M that stopped the world
+	// continues to use its P, even in _Pgcstop. Transitioning
+	// from _Prunning to _Pgcstop causes an M to release its P and
+	// park.
+	//
+	// The P retains its run queue and startTheWorld will restart
+	// the scheduler on Ps with non-empty run queues.
+	_Pgcstop
+	// _Pdead means a P is no longer used (GOMAXPROCS shrank). We
+	// reuse Ps if GOMAXPROCS increases. A dead P is mostly
+	// stripped of its resources, though a few things remain
+	// (e.g., trace buffers).
+	_Pdead
+)
+</code></pre><div class="mt6 instapaper_ignoref">
 </div>
 </div>
 <aside class="w-30-l mt6-l">

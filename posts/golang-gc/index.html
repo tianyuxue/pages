@@ -166,52 +166,58 @@ jitianyu
 <p>程序代码的执行必然伴随着内存的分配、修改和释放，GC将程序员从手动内存管理的繁琐工作中解放了出来，很大程度上提高了开发效率。就像任何事情一样，GC也不是免费的，GC的代价就在于消耗了CPU来执行了业务无关代码，从而造成用户代码执行的延迟。从这一点看GC调优与优化内存使用是密切相关的，造成GC过度延迟的根本原因就<strong>在于不恰当的内存分配和使用</strong>。</p>
 <p>GC调优的目的很简单：节约堆内存，降低GC造成的CPU消耗，避免因为GC而导致用户代码执行延迟，尤其是在某些延迟敏感的特定场景。衡量GC损耗的关键指标有三个：GC过程中的cpu使用率，STW时间和STW频率，这三个指标通常是互相关联的，总体上来说，GC的调优就是需要<strong>尽量减少内存分配和释放，尽量复用已经分配的内存</strong>。</p>
 <p>下面通过一个例子来分析GC调优的一些方法，这个例子中首先创建了长度为1000的256位随机字符串数组，然后在每一个web请求中随机生成一个字符串，然后再到字符串数组中查找，这个过程是对查找用户缓存的一个简单模拟，具体代码功能可以参考注释：</p>
-<p>package main</p>
-<p>import (
-&ldquo;io&rdquo;
-&ldquo;math/rand&rdquo;
-&ldquo;net/http&rdquo;</p>
-<pre><code>// 用于启动pprof的web接口
-\_ &quot;net/http/pprof&quot;
+<pre tabindex=0><code>package main
 
-&quot;strings&quot;
-</code></pre>
-<p>)</p>
-<p>// ids 模拟含有1000个用户id的缓存
-var ids = make([]string, 1000)</p>
-<p>func main() {
-// 初始化缓存
-for i := 0; i != 1000; i++ {
-s := getRandString(256)
-ids = append(ids, s)
-}</p>
-<pre><code>http.HandleFunc(&quot;/slowgc&quot;, slowGC)
-http.ListenAndServe(&quot;:8080&quot;, nil)
-</code></pre>
-<p>}</p>
-<p>// slowGC 模拟由于内存分配导致的GC
+import (
+	&quot;io&quot;
+	&quot;math/rand&quot;
+	&quot;net/http&quot;
+
+	// 用于启动pprof的web接口
+	_ &quot;net/http/pprof&quot;
+
+	&quot;strings&quot;
+)
+
+// ids 模拟含有1000个用户id的缓存
+var ids = make([]string, 1000)
+
+func main() {
+	// 初始化缓存
+	for i := 0; i != 1000; i++ {
+		s := getRandString(256)
+		ids = append(ids, s)
+	}
+
+	http.HandleFunc(&quot;/slowgc&quot;, slowGC)
+	http.ListenAndServe(&quot;:8080&quot;, nil)
+}
+
+// slowGC 模拟由于内存分配导致的GC
 func slowGC(w http.ResponseWriter, r *http.Request) {
-currentUser := getRandString(256)
-for _, id := range ids {
-// 这里调用了strings.ToLower函数，这个函数会导致字符串的复制
-if strings.Contains(strings.ToLower(currentUser), strings.ToLower(id)) {
-// if strings.Contains(id, currentUser) {
-io.WriteString(w, &ldquo;hit&rdquo;)
+	currentUser := getRandString(256)
+	for _, id := range ids {
+		// 这里调用了strings.ToLower函数，这个函数会导致字符串的复制
+		if strings.Contains(strings.ToLower(currentUser), strings.ToLower(id)) {
+		// if strings.Contains(id, currentUser) {
+			io.WriteString(w, &quot;hit&quot;)
+		}
+	}
+	io.WriteString(w, &quot;not found&quot;)
 }
-}
-io.WriteString(w, &ldquo;not found&rdquo;)
-}</p>
-<p>const letters = &ldquo;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&rdquo;</p>
-<p>// getRandString 生成指定位数的字符串
+
+const letters = &quot;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;
+
+// getRandString 生成指定位数的字符串
 func getRandString(length int) string {
-rnd := make([]byte, length)
-for i := range rnd {
-rnd[i] = letters[rand.Intn(len(letters))]
+	rnd := make([]byte, length)
+	for i := range rnd {
+		rnd[i] = letters[rand.Intn(len(letters))]
+	}
+	s := string(rnd)
+	return s
 }
-s := string(rnd)
-return s
-}</p>
-<h3 id=21-分析gc问题的瓶颈>2.1 分析GC问题的瓶颈</h3>
+</code></pre><h3 id=21-分析gc问题的瓶颈>2.1 分析GC问题的瓶颈</h3>
 <p>要观察GC信息主要有以下三种方式</p>
 <ul>
 <li>使用<strong>GODEBUG=gctrace=1</strong>参数启动程序观察GC日志</li>
@@ -329,53 +335,59 @@ ROUTINE ======================== main.slowGC in /data/codes/go-gc/main1.go
 </code></pre><p>首先使用命令</p>
 <pre tabindex=0><code>go tool pprof http://localhost:8080/debug/pprof/allocs
 </code></pre><p>进入pprof工具的交互模式，然后输人<code>top 5 -cum</code>查看分配内存最多的5个函数，从输出结果我们可以看出，<code>slowGC</code>函数分配了7GB左右的内存，这有一些奇怪，然后我们可以执行<code>list slowGC</code>命令，可以看出在第33行调用的操作字符串的方法分配内存最多，至此原因大概明白了，golang中string类型是不可变的，每次调用<code>strings.ToLower()</code>方法时候都会申请内存分配一个新的字符串，最后就造成的每次循环中都会申请一块新内存，从而造成GC压力（调用ToLower()方法只是为了举例说明GC问题，并无实际的意义）。我们可以针对这个问题做一下简单的修改，将第33行的ToLower()函数移动到循环之外：</p>
-<p>package main</p>
-<p>import (
-&ldquo;io&rdquo;
-&ldquo;math/rand&rdquo;
-&ldquo;net/http&rdquo;</p>
-<pre><code>// 用于启动pprof的web接口
-\_ &quot;net/http/pprof&quot;
+<pre tabindex=0><code>package main
 
-&quot;strings&quot;
-</code></pre>
-<p>)</p>
-<p>// ids 模拟含有1000个用户id的缓存
-var ids = make([]string, 1000)</p>
-<p>func main() {
-// 初始化缓存
-for i := 0; i != 1000; i++ {
-s := getRandString(256)
-s = strings.ToLower(s)
-ids = append(ids, s)
-}</p>
-<pre><code>http.HandleFunc(&quot;/slowgc&quot;, slowGC)
-http.ListenAndServe(&quot;:8080&quot;, nil)
-</code></pre>
-<p>}</p>
-<p>// slowGC 模拟由于内存分配导致的GC
+import (
+	&quot;io&quot;
+	&quot;math/rand&quot;
+	&quot;net/http&quot;
+
+	// 用于启动pprof的web接口
+	_ &quot;net/http/pprof&quot;
+
+	&quot;strings&quot;
+)
+
+// ids 模拟含有1000个用户id的缓存
+var ids = make([]string, 1000)
+
+func main() {
+	// 初始化缓存
+	for i := 0; i != 1000; i++ {
+		s := getRandString(256)
+		s = strings.ToLower(s)
+		ids = append(ids, s)
+	}
+
+	http.HandleFunc(&quot;/slowgc&quot;, slowGC)
+	http.ListenAndServe(&quot;:8080&quot;, nil)
+}
+
+// slowGC 模拟由于内存分配导致的GC
 func slowGC(w http.ResponseWriter, r *http.Request) {
-currentUser := getRandString(256)
-// 将ToLower()的调用移动到循环之外
-currentUser = strings.ToLower(currentUser)
-for _, id := range ids {
-if strings.Contains(id, currentUser) {
-io.WriteString(w, &ldquo;hit&rdquo;)
+	currentUser := getRandString(256)
+        // 将ToLower()的调用移动到循环之外
+	currentUser = strings.ToLower(currentUser)
+	for _, id := range ids {
+		if strings.Contains(id, currentUser) {
+			io.WriteString(w, &quot;hit&quot;)
+		}
+	}
+	io.WriteString(w, &quot;not found&quot;)
 }
-}
-io.WriteString(w, &ldquo;not found&rdquo;)
-}</p>
-<p>const letters = &ldquo;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&rdquo;</p>
-<p>// getRandString 生成指定位数的字符串
+
+const letters = &quot;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;
+
+// getRandString 生成指定位数的字符串
 func getRandString(length int) string {
-rnd := make([]byte, length)
-for i := range rnd {
-rnd[i] = letters[rand.Intn(len(letters))]
+	rnd := make([]byte, length)
+	for i := range rnd {
+		rnd[i] = letters[rand.Intn(len(letters))]
+	}
+	s := string(rnd)
+	return s
 }
-s := string(rnd)
-return s
-}</p>
-<p>再次执行上述压测命令，可以看到压测结果为：</p>
+</code></pre><p>再次执行上述压测命令，可以看到压测结果为：</p>
 <pre tabindex=0><code>ab -c 100 -n 10000 http://localhost:8080/slowgc
 This is ApacheBench, Version 2.3 &lt;$Revision: 1843412 $&gt;
 Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
