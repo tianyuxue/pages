@@ -1,0 +1,417 @@
+<!doctype html><html lang=zh-cn>
+<head>
+<meta charset=utf-8>
+<meta http-equiv=x-ua-compatible content="IE=edge,chrome=1">
+<title>Kratos源码分析 - 缓存部分 | ACoder</title>
+<meta name=viewport content="width=device-width,minimum-scale=1">
+<meta name=description content="
+本文的讨论基于Kratos v1.0.x版本
+
+Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。">
+<meta name=generator content="Hugo 0.92.0">
+<meta name=ROBOTS content="NOINDEX, NOFOLLOW">
+<link rel=stylesheet href=/ananke/css/main.min.css>
+<link rel="shortcut icon" href=/images/code.png type=image/x-icon>
+<meta property="og:title" content="Kratos源码分析 - 缓存部分">
+<meta property="og:description" content="
+本文的讨论基于Kratos v1.0.x版本
+
+Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://tianyuxue.github.io/posts/kratos-src-cache/"><meta property="article:section" content="posts">
+<meta property="article:published_time" content="2021-01-11T00:00:00+00:00">
+<meta property="article:modified_time" content="2021-01-11T00:00:00+00:00">
+<meta itemprop=name content="Kratos源码分析 - 缓存部分">
+<meta itemprop=description content="
+本文的讨论基于Kratos v1.0.x版本
+
+Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。"><meta itemprop=datePublished content="2021-01-11T00:00:00+00:00">
+<meta itemprop=dateModified content="2021-01-11T00:00:00+00:00">
+<meta itemprop=wordCount content="765">
+<meta itemprop=keywords content="cache,golang,kratos,"><meta name=twitter:card content="summary">
+<meta name=twitter:title content="Kratos源码分析 - 缓存部分">
+<meta name=twitter:description content="
+本文的讨论基于Kratos v1.0.x版本
+
+Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。">
+</head>
+<body class="ma0 avenir bg-near-white">
+<header class="cover bg-top" style=background-image:url(https://tianyuxue.github.io/images/cropped-valais-3562988_1920-2.jpg)>
+<div class="pb3-m pb6-l bg-black-10">
+<nav class="pv3 ph3 ph4-ns" role=navigation>
+<div class="flex-l justify-between items-center center">
+<a href=/ class="f3 fw2 hover-white no-underline white-90 dib">
+<img src=/images/cropped-code.png class="w100 mw5-ns" alt=ACoder>
+</a>
+<div class="flex-l items-center">
+<ul class="pl0 mr3">
+<li class="list f5 f4-ns fw4 dib pr3">
+<a class="hover-white no-underline white-90" href=/posts/ title="文章 page">
+文章
+</a>
+</li>
+<li class="list f5 f4-ns fw4 dib pr3">
+<a class="hover-white no-underline white-90" href=/about/ title="关于我 page">
+关于我
+</a>
+</li>
+</ul>
+<div class=ananke-socials>
+<a href=https://github.com/tianyuxue target=_blank class="github ananke-social-link link-transition stackoverflow link dib z-999 pt3 pt0-l mr1" title="GitHub link" rel=noopener aria-label="follow on GitHub——Opens in a new window">
+<span class=icon><svg style="enable-background:new 0 0 512 512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M256 32C132.3 32 32 134.8 32 261.7c0 101.5 64.2 187.5 153.2 217.9 11.2 2.1 15.3-5 15.3-11.1.0-5.5-.2-19.9-.3-39.1-62.3 13.9-75.5-30.8-75.5-30.8-10.2-26.5-24.9-33.6-24.9-33.6-20.3-14.3 1.5-14 1.5-14 22.5 1.6 34.3 23.7 34.3 23.7 20 35.1 52.4 25 65.2 19.1 2-14.8 7.8-25 14.2-30.7-49.7-5.8-102-25.5-102-113.5.0-25.1 8.7-45.6 23-61.6-2.3-5.8-10-29.2 2.2-60.8.0.0 18.8-6.2 61.6 23.5 17.9-5.1 37-7.6 56.1-7.7 19 .1 38.2 2.6 56.1 7.7 42.8-29.7 61.5-23.5 61.5-23.5 12.2 31.6 4.5 55 2.2 60.8 14.3 16.1 23 36.6 23 61.6.0 88.2-52.4 107.6-102.3 113.3 8 7.1 15.2 21.1 15.2 42.5.0 30.7-.3 55.5-.3 63 0 6.1 4 13.3 15.4 11C415.9 449.1 480 363.1 480 261.7 480 134.8 379.7 32 256 32z"/></svg>
+</span>
+<span class=new-window><svg height="8" style="enable-background:new 0 0 1000 1000" viewBox="0 0 1e3 1e3" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M598 128h298v298h-86V274L392 692l-60-60 418-418H598v-86zM810 810V512h86v298c0 46-40 86-86 86H214c-48 0-86-40-86-86V214c0-46 38-86 86-86h298v86H214v596h596z" style="fill-rule:evenodd;clip-rule:evenodd;fill:"/></svg>
+</span></a>
+</div>
+</div>
+</div>
+</nav>
+<div class="tc-l pv6 ph3 ph4-ns">
+<h1 class="f2 f1-l fw2 white-90 mb0 lh-title">Kratos源码分析 - 缓存部分</h1>
+</div>
+</div>
+</header>
+<main class=pb7 role=main>
+<article class="flex-l flex-wrap justify-between mw8 center ph3">
+<header class="mt4 w-100">
+<aside class="instapaper_ignoref b helvetica tracked">
+POSTS
+</aside>
+<div id=sharing class="mt3 ananke-socials">
+</div>
+<h1 class="f1 athelas mt3 mb1">Kratos源码分析 - 缓存部分</h1>
+<p class=tracked>
+By <strong>
+jitianyu
+</strong>
+</p>
+<time class="f6 mv4 dib tracked" datetime=2021-01-11T00:00:00Z>January 11, 2021</time>
+<span class="f6 mv4 dib tracked"> - 4 minutes read </span>
+<span class="f6 mv4 dib tracked"> - 765 words </span>
+</header>
+<div class="nested-copy-line-height lh-copy serif f4 nested-links nested-img mid-gray pr4-l w-two-thirds-l"><blockquote>
+<p>本文的讨论基于Kratos v1.0.x版本</p>
+</blockquote>
+<p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。</p>
+<h2 id=1-kratos缓存部分提供的功能>1 Kratos缓存部分提供的功能</h2>
+<p>Kratos提供了缓存相关的常用功能，见下表：</p>
+<ul>
+<li>使用空缓存避免缓存穿透</li>
+<li>缓存失效后，回源请求支持分批获取数据库数据，减少数据库访问延时</li>
+<li>异步添加缓存</li>
+<li>监控缓存回源比</li>
+<li>缓存失效后，通过<code>singleflight</code>模式限制回源访问数据库的并发度，避免数据库压力过大</li>
+</ul>
+<h2 id=2-代码实现>2 代码实现</h2>
+<p>Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于<code>tool/kartos-gen-bts/test-data/dao.bts.go</code>文件中的<code>Demos()</code>方法，具体含义可以参考代码中的注释：</p>
+<p>// Demos get data from cache if miss will call source method, then add to cache.
+func (d *dao) Demos(c context.Context, keys []int64) (res map[int64]*Demo, err error) {
+if len(keys) == 0 {
+return
+}
+addCache := true
+// 首先尝试从缓存中加载数据
+if res, err = d.CacheDemos(c, keys); err != nil {
+addCache = false
+res = nil
+err = nil
+}
+// miss 用来存储缓存未命中的数据
+var miss []int64
+for _, key := range keys {
+if (res == nil) || (res[key] == nil) {
+miss = append(miss, key)
+}
+}
+// 统计缓存命中数量
+cache.MetricHits.Add(float64(len(keys)-len(miss)), &ldquo;bts:Demos&rdquo;)</p>
+<pre><code>for k, v := range res {
+	if v.ID == -1 {
+		delete(res, k)
+	}
+}
+missLen := len(miss)
+if missLen == 0 {
+	return
+}
+missData := make(map\[int64\]\*Demo, missLen)
+// 统计缓存未命中的数量
+    cache.MetricMisses.Add(float64(missLen), &quot;bts:Demos&quot;)
+var mutex sync.Mutex
+
+// 通过errgroup包，分批从数据库中执行回源，请求数据量大的的情况下可以降低延迟
+group := errgroup.WithCancel(c)
+if missLen &gt; 20 {
+	group.GOMAXPROCS(20)
+}
+var run = func(ms \[\]int64) {
+	group.Go(func(ctx context.Context) (err error) {
+		data, err := d.RawDemos(ctx, ms)
+		mutex.Lock()
+		for k, v := range data {
+			missData\[k\] = v
+		}
+		mutex.Unlock()
+		return
+	})
+}
+var (
+	i int
+	n = missLen / 2
+)
+for i = 0; i &lt; n; i++ {
+	run(miss\[i\*2 : (i+1)\*2\])
+}
+if len(miss\[i\*2:\]) &gt; 0 {
+	run(miss\[i\*2:\])
+}
+err = group.Wait()
+if res == nil {
+	res = make(map\[int64\]\*Demo, len(keys))
+}
+for k, v := range missData {
+	res\[k\] = v
+}
+if err != nil {
+	return
+}
+// 数据库中不存在的数据也在缓存中存储一份默认值
+for \_, key := range miss {
+	if res\[key\] == nil {
+		missData\[key\] = &amp;Demo{ID: -1}
+	}
+}
+if !addCache {
+	return
+}
+// 通过异步的方法添加缓存，减少本次请求的延迟
+d.cache.Do(c, func(c context.Context) {
+	d.AddCacheDemos(c, missData)
+})
+return
+</code></pre>
+<p>}</p>
+<h3 id=21-缓存穿透>2.1 缓存穿透</h3>
+<p>缓存穿透指的是，在读数据的时候，没有命中缓存，请求“穿透”了缓存，<strong>直接访问后端数据库</strong>的情况。缓存穿透的情况下，缓存没有发挥作用，业务系统虽然去缓存查询数据，但缓存中没有数据，因此导致了业务系统需要再次去存储系统查询数据。通常不存在的数据访问应该不会太多，但是如果针对不存在数据进行大量恶意访问，就会导致这些请求全部被数据库处理，情况严重的话会造成整个业务系统不可用。这种情况的解决方案是，<strong>对于不存在的请求，也在缓存中存放一份表示不存在的数据</strong>，Kratos的代码中也是这样实现的。</p>
+<p>Krato tool genbts 工具提供了配置项-<code>nullcache</code>来避免缓存穿透，配置了之后，生成的代码中会在回源之后增加判断，从上述代码的74-78行可以看到，从数据库读取数据之后，如果请求的缓存仍然为空，那么就缓存一个不存在的值，避免缓存穿透。</p>
+<h3 id=22-回源数据分批请求数据库>2.2 回源数据分批请求数据库</h3>
+<p>如果缓存未命中，就需要从数据库中回源访问，Kratos的回源访问支持多线程并发访问，见上述代码<strong>38-62</strong>行。上述代码首先使用了github.com/go-kratos/kratos/pkg/sync/errgroup包， 定义了回源函数，然后将总的数据库<strong>请求分片</strong>，分批执行。</p>
+<p>这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：</p>
+<p>// A Group is a collection of goroutines working on subtasks that are part of
+// the same overall task.
+//
+// A zero Group is valid and does not cancel on error.
+type Group struct {
+err error // 最终的错误信息
+wg sync.WaitGroup // 用于确保所有子任务结束执行
+errOnce sync.Once</p>
+<pre><code>workerOnce sync.Once
+ch         chan func(ctx context.Context) error  // 存储待处理的任务
+chs        \[\]func(ctx context.Context) error
+
+ctx    context.Context
+cancel func()  // 出错后的取消函数
+</code></pre>
+<p>}</p>
+<p>&mldr;</p>
+<p>// Go方法增加子任务
+func (g *Group) Go(f func(ctx context.Context) error) {
+g.wg.Add(1)
+if g.ch != nil {
+select {
+case g.ch &lt;- f:
+default:
+g.chs = append(g.chs, f)
+}
+return
+}
+go g.do(f)
+}</p>
+<p>// Wait方法等待所有子任务结束
+func (g *Group) Wait() error {
+if g.ch != nil {
+for _, f := range g.chs {
+g.ch &lt;- f
+}
+}
+g.wg.Wait()
+if g.ch != nil {
+close(g.ch) // let all receiver exit
+}
+if g.cancel != nil {
+g.cancel()
+}
+return g.err
+}</p>
+<h3 id=23-异步添加缓存>2.3 异步添加缓存</h3>
+<p>如果缓存未命中，从数据库回源之后，还需要将数据加入到缓存中。但是当前请求已经获取了客户端需要的数据，因此这时候可以采用异步添加缓存的策略，当前请求直接返回给客户端。从2.1 部分开始前的代码83-85行可以看到，Kratos使用了<code>github.com/go-kratos/kratos/pkg/sync/pipeline/fanout</code>包来异步增加缓存。</p>
+<p>fanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了<strong>buffer类型的channel来存储任务</strong>，其处理任务的核心代码为：</p>
+<p>// New new a fanout struct.
+func New(name string, opts &mldr;Option) *Fanout {
+if name == "" {
+name = &ldquo;anonymous&rdquo;
+}
+o := &options{
+worker: 1,
+buffer: 1024,
+}
+for _, op := range opts {
+op(o)
+}
+c := &Fanout{
+ch: make(chan item, o.buffer),
+name: name,
+options: o,
+}
+c.ctx, c.cancel = context.WithCancel(context.Background())
+c.waiter.Add(o.worker)
+// 在这里启动worker
+for i := 0; i &lt; o.worker; i++ {
+go c.proc()
+}
+return c
+}
+&mldr;
+func (c *Fanout) proc() {
+defer c.waiter.Done()
+for {
+select {
+// 循环处理channel中待处理的任务
+case t := &lt;-c.ch:
+wrapFunc(t.f)(t.ctx)
+_metricChanSize.Set(float64(len(c.ch)), c.name)
+_metricCount.Inc(c.name)
+case &lt;-c.ctx.Done():
+return
+}
+}
+}</p>
+<h3 id=24-监控缓存命中率>2.4 监控缓存命中率</h3>
+<p>缓存监控的重点指标是缓存命中率，Kratos在也是在请求缓存之后，根据请求结果统计了如下数据：</p>
+<ul>
+<li><strong>请求缓存之后</strong>记录缓存命中数</li>
+<li><strong>请求缓存之后</strong>记录缓存未命中数</li>
+</ul>
+<p>具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：</p>
+<p>const _metricNamespace = &ldquo;cache&rdquo;</p>
+<p>// be used in tool/kratos-gen-bts
+var (
+MetricHits = metric.NewCounterVec(&metric.CounterVecOpts{
+Namespace: _metricNamespace,
+Subsystem: &ldquo;&rdquo;,
+Name: &ldquo;hits_total&rdquo;,
+Help: &ldquo;cache hits total.&rdquo;,
+Labels: []string{&ldquo;name&rdquo;},
+})
+MetricMisses = metric.NewCounterVec(&metric.CounterVecOpts{
+Namespace: _metricNamespace,
+Subsystem: &ldquo;&rdquo;,
+Name: &ldquo;misses_total&rdquo;,
+Help: &ldquo;cache misses total.&rdquo;,
+Labels: []string{&ldquo;name&rdquo;},
+})
+)</p>
+<h3 id=25-使用singleflight模式避免缓存失效引起的缓存雪崩>2.5 使用singleflight模式避免缓存失效引起的缓存雪崩</h3>
+<p>缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。<strong>&ldquo;缓存雪崩</strong>是指当缓存失效后引起<strong>系统性能急剧下降</strong>的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。<strong>由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存</strong>，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。"[1]</p>
+<p>针对这个问题，Kratos使用了<code>singleflight</code>模式（https://github.com/golang/sync/blob/master/singleflight/singleflight.go），如果一个key失效了，同一时间只允许一个线程执行缓存更新操作。这个方法限制了缓存更新的并发度，有助于解决缓存雪崩问题。</p>
+<p>要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下<code>-singleflight=true</code>配置：</p>
+<p>// bts: -sync=true -nullcache=&Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true
+Demo(c context.Context, key int64) (*Demo, error)</p>
+<p>生成代码中增加了一个全局变量<code>cacheSingleFlights</code>限制回源请求的并发度：</p>
+<p>var cacheSingleFlights = [1]*singleflight.Group{{}}</p>
+<p>然后在具体的回源代码中：</p>
+<p>// Demo get data from cache if miss will call source method, then add to cache.
+func (d *dao) Demo(c context.Context, key int64) (res *Demo, err error) {
+addCache := true
+res, err = d.CacheDemo(c, key)
+if err != nil {
+addCache = false
+err = nil
+}
+defer func() {
+if res.ID == -1 {
+res = nil
+}
+}()
+if res != nil {
+cache.MetricHits.Inc(&ldquo;bts:Demo&rdquo;)
+return
+}
+var rr interface{}
+sf := d.cacheSFDemo(key)
+rr, err, _ = cacheSingleFlights[0].Do(sf, func() (r interface{}, e error) {
+cache.MetricMisses.Inc(&ldquo;bts:Demo&rdquo;)
+r, e = d.RawDemo(c, key)
+return
+})
+res = rr.(*Demo)
+if err != nil {
+return
+}
+miss := res
+if miss == nil {
+miss = &Demo{ID: -1}
+}
+if !addCache {
+return
+}
+d.AddCacheDemo(c, key, miss)
+return
+}</p>
+<p>从18到28行的调用可以看到，Kratos使用全局变量cacheSingleFlights限制了数据库回源请求RawDemo()的并发度，如果看一下singleflight的实现，可以看到其<strong>内部使用了map存储要执行的函数</strong>，确保在同一时间，同一个函数只被执行一次。</p>
+<p>singleflight模式只限制了，在缓存失效时，一个进程内只有一个请求到达数据库。在当前的微服务架构下，如果一个服务有上百个副本在运行，那么也有可能造成数据库压力增加，这种情况下可以采用分布式锁或者后台更新缓存的策略。</p>
+<h2 id=3-总结>3 总结</h2>
+<p>本文从源码的角度讨论了Kratos生成的缓存回源代码的一些功能。</p>
+<h2 id=引用>引用</h2>
+<p>[1] 高性能缓存架构 <a href=https://time.geekbang.org/column/article/8640>https://time.geekbang.org/column/article/8640</a></p><div class="mt6 instapaper_ignoref">
+</div>
+</div>
+<aside class="w-30-l mt6-l">
+<div class="bg-light-gray pa3 nested-list-reset nested-copy-line-height nested-links">
+<p class="f5 b mb3">Related</p>
+<ul class="pa0 list">
+<li class=mb2>
+<a href=/posts/kratos-src-mysql/>Kratos 源码分析 - MySQL部分</a>
+</li>
+<li class=mb2>
+<a href=/posts/golang-gc/>关于Golang GC的一些分析</a>
+</li>
+<li class=mb2>
+<a href=/posts/golang-scheduler/>关于Golang调度器的一些分析</a>
+</li>
+</ul>
+</div>
+<div class="bg-light-gray pa3 nested-list-reset nested-copy-line-height nested-links">
+<p class="f5 b mb3">Tags</p>
+<ul class=pa0>
+<li class=list>
+<a href=/tags/cache class="link f5 grow no-underline br-pill ba ph3 pv2 mb2 dib black sans-serif">cache</a>
+</li>
+<li class=list>
+<a href=/tags/golang class="link f5 grow no-underline br-pill ba ph3 pv2 mb2 dib black sans-serif">golang</a>
+</li>
+<li class=list>
+<a href=/tags/kratos class="link f5 grow no-underline br-pill ba ph3 pv2 mb2 dib black sans-serif">kratos</a>
+</li>
+</ul>
+</div>
+</aside>
+</article>
+</main>
+<footer class="bg-black bottom-0 w-100 pa3" role=contentinfo>
+<div class="flex justify-between">
+<a class="f4 fw4 hover-white no-underline white-70 dn dib-ns pv2 ph3" href=https://tianyuxue.github.io/>
+&copy; ACoder 2022
+</a>
+<div>
+<div class=ananke-socials>
+<a href=https://github.com/tianyuxue target=_blank class="github ananke-social-link link-transition stackoverflow link dib z-999 pt3 pt0-l mr1" title="GitHub link" rel=noopener aria-label="follow on GitHub——Opens in a new window">
+<span class=icon><svg style="enable-background:new 0 0 512 512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M256 32C132.3 32 32 134.8 32 261.7c0 101.5 64.2 187.5 153.2 217.9 11.2 2.1 15.3-5 15.3-11.1.0-5.5-.2-19.9-.3-39.1-62.3 13.9-75.5-30.8-75.5-30.8-10.2-26.5-24.9-33.6-24.9-33.6-20.3-14.3 1.5-14 1.5-14 22.5 1.6 34.3 23.7 34.3 23.7 20 35.1 52.4 25 65.2 19.1 2-14.8 7.8-25 14.2-30.7-49.7-5.8-102-25.5-102-113.5.0-25.1 8.7-45.6 23-61.6-2.3-5.8-10-29.2 2.2-60.8.0.0 18.8-6.2 61.6 23.5 17.9-5.1 37-7.6 56.1-7.7 19 .1 38.2 2.6 56.1 7.7 42.8-29.7 61.5-23.5 61.5-23.5 12.2 31.6 4.5 55 2.2 60.8 14.3 16.1 23 36.6 23 61.6.0 88.2-52.4 107.6-102.3 113.3 8 7.1 15.2 21.1 15.2 42.5.0 30.7-.3 55.5-.3 63 0 6.1 4 13.3 15.4 11C415.9 449.1 480 363.1 480 261.7 480 134.8 379.7 32 256 32z"/></svg>
+</span>
+<span class=new-window><svg height="8" style="enable-background:new 0 0 1000 1000" viewBox="0 0 1e3 1e3" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M598 128h298v298h-86V274L392 692l-60-60 418-418H598v-86zM810 810V512h86v298c0 46-40 86-86 86H214c-48 0-86-40-86-86V214c0-46 38-86 86-86h298v86H214v596h596z" style="fill-rule:evenodd;clip-rule:evenodd;fill:"/></svg>
+</span></a>
+</div></div>
+</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>kratos on ACoder</title><link>https://tianyuxue.github.io/categories/kratos/</link><description>Recent content in kratos on ACoder</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Mon, 11 Jan 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/categories/kratos/index.xml" rel="self" type="application/rss+xml"/><item><title>Kratos源码分析 - 缓存部分</title><link>https://tianyuxue.github.io/posts/kratos-src-cache/</link><pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/kratos-src-cache/</guid><description>&lt;blockquote>
+&lt;p>本文的讨论基于Kratos v1.0.x版本&lt;/p>
+&lt;/blockquote>
+&lt;p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。&lt;/p></description></item><item><title>Kratos 源码分析 - MySQL部分</title><link>https://tianyuxue.github.io/posts/kratos-src-mysql/</link><pubDate>Thu, 07 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/kratos-src-mysql/</guid><description>&lt;blockquote>
+&lt;p>本文的讨论基于Kratos v1.0.x版本&lt;/p>
+&lt;/blockquote>
+&lt;p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与MySQL相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。&lt;/p></description></item></channel></rss>

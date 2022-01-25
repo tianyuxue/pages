@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>gc on ACoder</title><link>https://tianyuxue.github.io/tags/gc/</link><description>Recent content in gc on ACoder</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Sat, 02 Jan 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/tags/gc/index.xml" rel="self" type="application/rss+xml"/><item><title>关于Golang GC的一些分析</title><link>https://tianyuxue.github.io/posts/golang-gc/</link><pubDate>Sat, 02 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/golang-gc/</guid><description>&lt;blockquote>
+&lt;p>本文介绍了Golang中GC的执行过程，然后用一个例子，结合golang提供的GC日志和pprof工具，介绍GC调优的基本方法&lt;/p>
+&lt;p>本文的讨论基于golang 1.15.4版本&lt;/p>
+&lt;/blockquote></description></item></channel></rss>
