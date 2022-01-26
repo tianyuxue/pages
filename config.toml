@@ -3,6 +3,7 @@ title = 'ACoder'
 languageCode = 'zh-cn'
 theme = "ananke"
 resourceDir = "./resources"
+googleAnalytics = 'G-0T00DX73T1'
 
 
 [menu]
