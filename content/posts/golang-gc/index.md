@@ -74,7 +74,7 @@ GC调优的目的很简单：节约堆内存，降低GC造成的CPU消耗，避�
 
 下面通过一个例子来分析GC调优的一些方法，这个例子中首先创建了长度为1000的256位随机字符串数组，然后在每一个web请求中随机生成一个字符串，然后再到字符串数组中查找，这个过程是对查找用户缓存的一个简单模拟，具体代码功能可以参考注释：
 
-```
+```go
 package main
 
 import (
@@ -138,14 +138,14 @@ func getRandString(length int) string {
 
 下面我们通过上述的例子，打开`GODEBUG=gctrace=1`来分析一下GC信息。首先我们执行如下命令启动程序：
 
-```
+```shell
 go build main.go
 GODEBUG=gctrace=1 ./main
 ```
 
 接着使用`ab`工具对接口进行压力测试：
 
-```
+```shell
 # -c 表示同时发送100个请求
 # -n 表示请求总量一共10000个
 ab -c 100 -n 10000 http://localhost:8080/slowgc
@@ -153,7 +153,7 @@ ab -c 100 -n 10000 http://localhost:8080/slowgc
 
 `ab`工具可以得到类似的结果：
 
-```
+```shell
 ab -c 100 -n 10000 http://localhost:8080/slowgc
 This is ApacheBench, Version 2.3 <$Revision: 1843412 $>
 Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
@@ -222,7 +222,7 @@ gc 2622 @25.826s 9%: 0.76+1.7+0.019 ms clock, 3.0+1.9/0.40/0+0.078 ms cpu, 4->4-
 
 观察压测结束后的gc日志，可以看出10000个请求一共触发了2622次GC，其中GC Groutine一共使用了将近百分之十的CPU，在这样一个简单的业务逻辑下，GC触发的频率明显过高，并且占用的CPU时间也过高（关于GC trace信息的阅读可以参考文末附录），这是不合理的，GC的行为不符合预期的时候，我们首先应该从**内存是否合理**分配来入手分析，接下来我们可以使用go tool pprof工具来查看一下上述代码的内存使用情况：
 
-```
+```shell
 go tool pprof http://localhost:8080/debug/pprof/allocs
 Fetching profile over HTTP from http://localhost:8080/debug/pprof/allocs
 Saved profile in /root/pprof/pprof.go-gc-tutorial.alloc_objects.alloc_space.inuse_objects.inuse_space.001.pb.gz
