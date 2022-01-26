@@ -166,58 +166,58 @@ jitianyu
 <p>程序代码的执行必然伴随着内存的分配、修改和释放，GC将程序员从手动内存管理的繁琐工作中解放了出来，很大程度上提高了开发效率。就像任何事情一样，GC也不是免费的，GC的代价就在于消耗了CPU来执行了业务无关代码，从而造成用户代码执行的延迟。从这一点看GC调优与优化内存使用是密切相关的，造成GC过度延迟的根本原因就<strong>在于不恰当的内存分配和使用</strong>。</p>
 <p>GC调优的目的很简单：节约堆内存，降低GC造成的CPU消耗，避免因为GC而导致用户代码执行延迟，尤其是在某些延迟敏感的特定场景。衡量GC损耗的关键指标有三个：GC过程中的cpu使用率，STW时间和STW频率，这三个指标通常是互相关联的，总体上来说，GC的调优就是需要<strong>尽量减少内存分配和释放，尽量复用已经分配的内存</strong>。</p>
 <p>下面通过一个例子来分析GC调优的一些方法，这个例子中首先创建了长度为1000的256位随机字符串数组，然后在每一个web请求中随机生成一个字符串，然后再到字符串数组中查找，这个过程是对查找用户缓存的一个简单模拟，具体代码功能可以参考注释：</p>
-<pre tabindex=0><code>package main
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
 
-import (
-	&quot;io&quot;
-	&quot;math/rand&quot;
-	&quot;net/http&quot;
+<span style=color:#f92672>import</span> (
+	<span style=color:#e6db74>&#34;io&#34;</span>
+	<span style=color:#e6db74>&#34;math/rand&#34;</span>
+	<span style=color:#e6db74>&#34;net/http&#34;</span>
 
-	// 用于启动pprof的web接口
-	_ &quot;net/http/pprof&quot;
+	<span style=color:#75715e>// 用于启动pprof的web接口
+</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_</span> <span style=color:#e6db74>&#34;net/http/pprof&#34;</span>
 
-	&quot;strings&quot;
+	<span style=color:#e6db74>&#34;strings&#34;</span>
 )
 
-// ids 模拟含有1000个用户id的缓存
-var ids = make([]string, 1000)
+<span style=color:#75715e>// ids 模拟含有1000个用户id的缓存
+</span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>ids</span> = make([]<span style=color:#66d9ef>string</span>, <span style=color:#ae81ff>1000</span>)
 
-func main() {
-	// 初始化缓存
-	for i := 0; i != 1000; i++ {
-		s := getRandString(256)
-		ids = append(ids, s)
+<span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+	<span style=color:#75715e>// 初始化缓存
+</span><span style=color:#75715e></span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> <span style=color:#f92672>!=</span> <span style=color:#ae81ff>1000</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
+		<span style=color:#a6e22e>s</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>getRandString</span>(<span style=color:#ae81ff>256</span>)
+		<span style=color:#a6e22e>ids</span> = append(<span style=color:#a6e22e>ids</span>, <span style=color:#a6e22e>s</span>)
 	}
 
-	http.HandleFunc(&quot;/slowgc&quot;, slowGC)
-	http.ListenAndServe(&quot;:8080&quot;, nil)
+	<span style=color:#a6e22e>http</span>.<span style=color:#a6e22e>HandleFunc</span>(<span style=color:#e6db74>&#34;/slowgc&#34;</span>, <span style=color:#a6e22e>slowGC</span>)
+	<span style=color:#a6e22e>http</span>.<span style=color:#a6e22e>ListenAndServe</span>(<span style=color:#e6db74>&#34;:8080&#34;</span>, <span style=color:#66d9ef>nil</span>)
 }
 
-// slowGC 模拟由于内存分配导致的GC
-func slowGC(w http.ResponseWriter, r *http.Request) {
-	currentUser := getRandString(256)
-	for _, id := range ids {
-		// 这里调用了strings.ToLower函数，这个函数会导致字符串的复制
-		if strings.Contains(strings.ToLower(currentUser), strings.ToLower(id)) {
-		// if strings.Contains(id, currentUser) {
-			io.WriteString(w, &quot;hit&quot;)
+<span style=color:#75715e>// slowGC 模拟由于内存分配导致的GC
+</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>slowGC</span>(<span style=color:#a6e22e>w</span> <span style=color:#a6e22e>http</span>.<span style=color:#a6e22e>ResponseWriter</span>, <span style=color:#a6e22e>r</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>http</span>.<span style=color:#a6e22e>Request</span>) {
+	<span style=color:#a6e22e>currentUser</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>getRandString</span>(<span style=color:#ae81ff>256</span>)
+	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>id</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>ids</span> {
+		<span style=color:#75715e>// 这里调用了strings.ToLower函数，这个函数会导致字符串的复制
+</span><span style=color:#75715e></span>		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>strings</span>.<span style=color:#a6e22e>Contains</span>(<span style=color:#a6e22e>strings</span>.<span style=color:#a6e22e>ToLower</span>(<span style=color:#a6e22e>currentUser</span>), <span style=color:#a6e22e>strings</span>.<span style=color:#a6e22e>ToLower</span>(<span style=color:#a6e22e>id</span>)) {
+		<span style=color:#75715e>// if strings.Contains(id, currentUser) {
+</span><span style=color:#75715e></span>			<span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>WriteString</span>(<span style=color:#a6e22e>w</span>, <span style=color:#e6db74>&#34;hit&#34;</span>)
 		}
 	}
-	io.WriteString(w, &quot;not found&quot;)
+	<span style=color:#a6e22e>io</span>.<span style=color:#a6e22e>WriteString</span>(<span style=color:#a6e22e>w</span>, <span style=color:#e6db74>&#34;not found&#34;</span>)
 }
 
-const letters = &quot;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&quot;
+<span style=color:#66d9ef>const</span> <span style=color:#a6e22e>letters</span> = <span style=color:#e6db74>&#34;abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ&#34;</span>
 
-// getRandString 生成指定位数的字符串
-func getRandString(length int) string {
-	rnd := make([]byte, length)
-	for i := range rnd {
-		rnd[i] = letters[rand.Intn(len(letters))]
+<span style=color:#75715e>// getRandString 生成指定位数的字符串
+</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>getRandString</span>(<span style=color:#a6e22e>length</span> <span style=color:#66d9ef>int</span>) <span style=color:#66d9ef>string</span> {
+	<span style=color:#a6e22e>rnd</span> <span style=color:#f92672>:=</span> make([]<span style=color:#66d9ef>byte</span>, <span style=color:#a6e22e>length</span>)
+	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>rnd</span> {
+		<span style=color:#a6e22e>rnd</span>[<span style=color:#a6e22e>i</span>] = <span style=color:#a6e22e>letters</span>[<span style=color:#a6e22e>rand</span>.<span style=color:#a6e22e>Intn</span>(len(<span style=color:#a6e22e>letters</span>))]
 	}
-	s := string(rnd)
-	return s
+	<span style=color:#a6e22e>s</span> <span style=color:#f92672>:=</span> string(<span style=color:#a6e22e>rnd</span>)
+	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>s</span>
 }
-</code></pre><h3 id=21-分析gc问题的瓶颈>2.1 分析GC问题的瓶颈</h3>
+</code></pre></div><h3 id=21-分析gc问题的瓶颈>2.1 分析GC问题的瓶颈</h3>
 <p>要观察GC信息主要有以下三种方式</p>
 <ul>
 <li>使用<strong>GODEBUG=gctrace=1</strong>参数启动程序观察GC日志</li>
@@ -225,114 +225,114 @@ func getRandString(length int) string {
 <li><strong>go tool trace</strong>工具可以列出整个代码执行过程中的详细信息。</li>
 </ul>
 <p>下面我们通过上述的例子，打开<code>GODEBUG=gctrace=1</code>来分析一下GC信息。首先我们执行如下命令启动程序：</p>
-<pre tabindex=0><code>go build main.go
-GODEBUG=gctrace=1 ./main
-</code></pre><p>接着使用<code>ab</code>工具对接口进行压力测试：</p>
-<pre tabindex=0><code># -c 表示同时发送100个请求
-# -n 表示请求总量一共10000个
-ab -c 100 -n 10000 http://localhost:8080/slowgc
-</code></pre><p><code>ab</code>工具可以得到类似的结果：</p>
-<pre tabindex=0><code>ab -c 100 -n 10000 http://localhost:8080/slowgc
-This is ApacheBench, Version 2.3 &lt;$Revision: 1843412 $&gt;
-Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>go build main.go
+GODEBUG<span style=color:#f92672>=</span>gctrace<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> ./main
+</code></pre></div><p>接着使用<code>ab</code>工具对接口进行压力测试：</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell><span style=color:#75715e># -c 表示同时发送100个请求</span>
+<span style=color:#75715e># -n 表示请求总量一共10000个</span>
+ab -c <span style=color:#ae81ff>100</span> -n <span style=color:#ae81ff>10000</span> http://localhost:8080/slowgc
+</code></pre></div><p><code>ab</code>工具可以得到类似的结果：</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>ab -c <span style=color:#ae81ff>100</span> -n <span style=color:#ae81ff>10000</span> http://localhost:8080/slowgc
+This is ApacheBench, Version 2.3 &lt;$Revision: <span style=color:#ae81ff>1843412</span> $&gt;
+Copyright <span style=color:#ae81ff>1996</span> Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
 Licensed to The Apache Software Foundation, http://www.apache.org/
 
-Benchmarking localhost (be patient)
-Completed 1000 requests
-Completed 2000 requests
-Completed 3000 requests
-Completed 4000 requests
-Completed 5000 requests
-Completed 6000 requests
-Completed 7000 requests
-Completed 8000 requests
-Completed 9000 requests
-Completed 10000 requests
-Finished 10000 requests
+Benchmarking localhost <span style=color:#f92672>(</span>be patient<span style=color:#f92672>)</span>
+Completed <span style=color:#ae81ff>1000</span> requests
+Completed <span style=color:#ae81ff>2000</span> requests
+Completed <span style=color:#ae81ff>3000</span> requests
+Completed <span style=color:#ae81ff>4000</span> requests
+Completed <span style=color:#ae81ff>5000</span> requests
+Completed <span style=color:#ae81ff>6000</span> requests
+Completed <span style=color:#ae81ff>7000</span> requests
+Completed <span style=color:#ae81ff>8000</span> requests
+Completed <span style=color:#ae81ff>9000</span> requests
+Completed <span style=color:#ae81ff>10000</span> requests
+Finished <span style=color:#ae81ff>10000</span> requests
 
 
 Server Software:        
 Server Hostname:        localhost
-Server Port:            8080
+Server Port:            <span style=color:#ae81ff>8080</span>
 
 Document Path:          /slowgc
-Document Length:        3009 bytes
+Document Length:        <span style=color:#ae81ff>3009</span> bytes
 
-Concurrency Level:      100
-Time taken for tests:   23.753 seconds
-Complete requests:      10000
-Failed requests:        0
-Total transferred:      31060000 bytes
-HTML transferred:       30090000 bytes
-Requests per second:    421.00 [#/sec] (mean)
-Time per request:       237.529 [ms] (mean)
-Time per request:       2.375 [ms] (mean, across all concurrent requests)
-Transfer rate:          1276.98 [Kbytes/sec] received
+Concurrency Level:      <span style=color:#ae81ff>100</span>
+Time taken <span style=color:#66d9ef>for</span> tests:   23.753 seconds
+Complete requests:      <span style=color:#ae81ff>10000</span>
+Failed requests:        <span style=color:#ae81ff>0</span>
+Total transferred:      <span style=color:#ae81ff>31060000</span> bytes
+HTML transferred:       <span style=color:#ae81ff>30090000</span> bytes
+Requests per second:    421.00 <span style=color:#f92672>[</span><span style=color:#75715e>#/sec] (mean)</span>
+Time per request:       237.529 <span style=color:#f92672>[</span>ms<span style=color:#f92672>]</span> <span style=color:#f92672>(</span>mean<span style=color:#f92672>)</span>
+Time per request:       2.375 <span style=color:#f92672>[</span>ms<span style=color:#f92672>]</span> <span style=color:#f92672>(</span>mean, across all concurrent requests<span style=color:#f92672>)</span>
+Transfer rate:          1276.98 <span style=color:#f92672>[</span>Kbytes/sec<span style=color:#f92672>]</span> received
 
-Connection Times (ms)
-              min  mean[+/-sd] median   max
-Connect:        0    0   0.3      0       5
-Processing:     6  237 136.6    210    1217
-Waiting:        6  230 136.2    204    1217
-Total:          6  237 136.6    210    1217
+Connection Times <span style=color:#f92672>(</span>ms<span style=color:#f92672>)</span>
+              min  mean<span style=color:#f92672>[</span>+/-sd<span style=color:#f92672>]</span> median   max
+Connect:        <span style=color:#ae81ff>0</span>    <span style=color:#ae81ff>0</span>   0.3      <span style=color:#ae81ff>0</span>       <span style=color:#ae81ff>5</span>
+Processing:     <span style=color:#ae81ff>6</span>  <span style=color:#ae81ff>237</span> 136.6    <span style=color:#ae81ff>210</span>    <span style=color:#ae81ff>1217</span>
+Waiting:        <span style=color:#ae81ff>6</span>  <span style=color:#ae81ff>230</span> 136.2    <span style=color:#ae81ff>204</span>    <span style=color:#ae81ff>1217</span>
+Total:          <span style=color:#ae81ff>6</span>  <span style=color:#ae81ff>237</span> 136.6    <span style=color:#ae81ff>210</span>    <span style=color:#ae81ff>1217</span>
 
-Percentage of the requests served within a certain time (ms)
-  50%    210
-  66%    263
-  75%    301
-  80%    331
-  90%    412
-  95%    489
-  98%    598
-  99%    704
- 100%   1217 (longest request)
-</code></pre><p>可以看出上面代码的简单逻辑，每秒钟处理的请求数量只有421个，按道理来说简单的字符串查找不应该这么慢，那么问题出在哪里呢，接着看下刚才过程中的gctrace信息：</p>
+Percentage of the requests served within a certain time <span style=color:#f92672>(</span>ms<span style=color:#f92672>)</span>
+  50%    <span style=color:#ae81ff>210</span>
+  66%    <span style=color:#ae81ff>263</span>
+  75%    <span style=color:#ae81ff>301</span>
+  80%    <span style=color:#ae81ff>331</span>
+  90%    <span style=color:#ae81ff>412</span>
+  95%    <span style=color:#ae81ff>489</span>
+  98%    <span style=color:#ae81ff>598</span>
+  99%    <span style=color:#ae81ff>704</span>
+ 100%   <span style=color:#ae81ff>1217</span> <span style=color:#f92672>(</span>longest request<span style=color:#f92672>)</span>
+</code></pre></div><p>可以看出上面代码的简单逻辑，每秒钟处理的请求数量只有421个，按道理来说简单的字符串查找不应该这么慢，那么问题出在哪里呢，接着看下刚才过程中的gctrace信息：</p>
 <pre tabindex=0><code>...
 gc 2619 @25.802s 9%: 0.060+0.61+0.019 ms clock, 0.24+0.73/0.49/0+0.079 ms cpu, 4-&gt;4-&gt;1 MB, 5 MB goal, 4 P
 gc 2620 @25.810s 9%: 0.085+0.68+0.022 ms clock, 0.34+0.80/0.57/0+0.088 ms cpu, 4-&gt;4-&gt;0 MB, 5 MB goal, 4 P
 gc 2621 @25.818s 9%: 0.057+0.42+0.019 ms clock, 0.23+0.63/0.30/0+0.076 ms cpu, 4-&gt;4-&gt;0 MB, 5 MB goal, 4 P
 gc 2622 @25.826s 9%: 0.76+1.7+0.019 ms clock, 3.0+1.9/0.40/0+0.078 ms cpu, 4-&gt;4-&gt;1 MB, 5 MB goal, 4 P
 </code></pre><p>观察压测结束后的gc日志，可以看出10000个请求一共触发了2622次GC，其中GC Groutine一共使用了将近百分之十的CPU，在这样一个简单的业务逻辑下，GC触发的频率明显过高，并且占用的CPU时间也过高（关于GC trace信息的阅读可以参考文末附录），这是不合理的，GC的行为不符合预期的时候，我们首先应该从<strong>内存是否合理</strong>分配来入手分析，接下来我们可以使用go tool pprof工具来查看一下上述代码的内存使用情况：</p>
-<pre tabindex=0><code>go tool pprof http://localhost:8080/debug/pprof/allocs
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>go tool pprof http://localhost:8080/debug/pprof/allocs
 Fetching profile over HTTP from http://localhost:8080/debug/pprof/allocs
 Saved profile in /root/pprof/pprof.go-gc-tutorial.alloc_objects.alloc_space.inuse_objects.inuse_space.001.pb.gz
 File: go-gc-tutorial
 Type: alloc_space
-Time: Jan 2, 2021 at 9:39pm (CST)
-Entering interactive mode (type &quot;help&quot; for commands, &quot;o&quot; for options)
-(pprof) top 6 -cum
-Showing nodes accounting for 0, 0% of 7.26GB total
-Dropped 58 nodes (cum &lt;= 0.04GB)
-Showing top 6 nodes out of 8
+Time: Jan 2, <span style=color:#ae81ff>2021</span> at 9:39pm <span style=color:#f92672>(</span>CST<span style=color:#f92672>)</span>
+Entering interactive mode <span style=color:#f92672>(</span>type <span style=color:#e6db74>&#34;help&#34;</span> <span style=color:#66d9ef>for</span> commands, <span style=color:#e6db74>&#34;o&#34;</span> <span style=color:#66d9ef>for</span> options<span style=color:#f92672>)</span>
+<span style=color:#f92672>(</span>pprof<span style=color:#f92672>)</span> top <span style=color:#ae81ff>6</span> -cum
+Showing nodes accounting <span style=color:#66d9ef>for</span> 0, 0% of 7.26GB total
+Dropped <span style=color:#ae81ff>58</span> nodes <span style=color:#f92672>(</span>cum &lt;<span style=color:#f92672>=</span> 0.04GB<span style=color:#f92672>)</span>
+Showing top <span style=color:#ae81ff>6</span> nodes out of <span style=color:#ae81ff>8</span>
       flat  flat%   sum%        cum   cum%
-         0     0%     0%     7.25GB 99.91%  net/http.(*conn).serve
-         0     0%     0%     7.16GB 98.68%  main.slowGC
-         0     0%     0%     7.16GB 98.68%  net/http.(*ServeMux).ServeHTTP
-         0     0%     0%     7.16GB 98.68%  net/http.HandlerFunc.ServeHTTP
-         0     0%     0%     7.16GB 98.68%  net/http.serverHandler.ServeHTTP
-         0     0%     0%     7.16GB 98.61%  strings.(*Builder).Grow (inline)
-(pprof) 
-(pprof) list slowGC
+         <span style=color:#ae81ff>0</span>     0%     0%     7.25GB 99.91%  net/http.<span style=color:#f92672>(</span>*conn<span style=color:#f92672>)</span>.serve
+         <span style=color:#ae81ff>0</span>     0%     0%     7.16GB 98.68%  main.slowGC
+         <span style=color:#ae81ff>0</span>     0%     0%     7.16GB 98.68%  net/http.<span style=color:#f92672>(</span>*ServeMux<span style=color:#f92672>)</span>.ServeHTTP
+         <span style=color:#ae81ff>0</span>     0%     0%     7.16GB 98.68%  net/http.HandlerFunc.ServeHTTP
+         <span style=color:#ae81ff>0</span>     0%     0%     7.16GB 98.68%  net/http.serverHandler.ServeHTTP
+         <span style=color:#ae81ff>0</span>     0%     0%     7.16GB 98.61%  strings.<span style=color:#f92672>(</span>*Builder<span style=color:#f92672>)</span>.Grow <span style=color:#f92672>(</span>inline<span style=color:#f92672>)</span>
+<span style=color:#f92672>(</span>pprof<span style=color:#f92672>)</span> 
+<span style=color:#f92672>(</span>pprof<span style=color:#f92672>)</span> list slowGC
 Total: 7.26GB
-ROUTINE ======================== main.slowGC in /data/codes/go-gc/main1.go
-         0     7.16GB (flat, cum) 98.68% of Total
-         .          .     25:	http.ListenAndServe(&quot;:8080&quot;, nil)
-         .          .     26:}
+ROUTINE <span style=color:#f92672>========================</span> main.slowGC in /data/codes/go-gc/main1.go
+         <span style=color:#ae81ff>0</span>     7.16GB <span style=color:#f92672>(</span>flat, cum<span style=color:#f92672>)</span> 98.68% of Total
+         .          .     25:	http.ListenAndServe<span style=color:#f92672>(</span><span style=color:#e6db74>&#34;:8080&#34;</span>, nil<span style=color:#f92672>)</span>
+         .          .     26:<span style=color:#f92672>}</span>
          .          .     27:
          .          .     28:// slowGC 模拟由于内存分配导致的GC
-         .          .     29:func slowGC(w http.ResponseWriter, r *http.Request) {
-         .     4.50MB     30:	currentUser := getRandString(256)
-         .          .     31:	for _, id := range ids {
+         .          .     29:func slowGC<span style=color:#f92672>(</span>w http.ResponseWriter, r *http.Request<span style=color:#f92672>)</span> <span style=color:#f92672>{</span>
+         .     4.50MB     30:	currentUser :<span style=color:#f92672>=</span> getRandString<span style=color:#f92672>(</span>256<span style=color:#f92672>)</span>
+         .          .     31:	<span style=color:#66d9ef>for</span> _, id :<span style=color:#f92672>=</span> range ids <span style=color:#f92672>{</span>
          .          .     32:		// 这里调用了strings.ToLower函数，这个函数会导致字符串的复制
-         .     7.16GB     33:		if strings.Contains(strings.ToLower(currentUser), strings.ToLower(id)) {
-         .          .     34:		// if strings.Contains(id, currentUser) {
-         .   512.02kB     35:			io.WriteString(w, &quot;hit&quot;)
-         .          .     36:		}
-         .          .     37:	}
-         .          .     38:	io.WriteString(w, &quot;not found&quot;)
-         .          .     39:}
+         .     7.16GB     33:		<span style=color:#66d9ef>if</span> strings.Contains<span style=color:#f92672>(</span>strings.ToLower<span style=color:#f92672>(</span>currentUser<span style=color:#f92672>)</span>, strings.ToLower<span style=color:#f92672>(</span>id<span style=color:#f92672>))</span> <span style=color:#f92672>{</span>
+         .          .     34:		// <span style=color:#66d9ef>if</span> strings.Contains<span style=color:#f92672>(</span>id, currentUser<span style=color:#f92672>)</span> <span style=color:#f92672>{</span>
+         .   512.02kB     35:			io.WriteString<span style=color:#f92672>(</span>w, <span style=color:#e6db74>&#34;hit&#34;</span><span style=color:#f92672>)</span>
+         .          .     36:		<span style=color:#f92672>}</span>
+         .          .     37:	<span style=color:#f92672>}</span>
+         .          .     38:	io.WriteString<span style=color:#f92672>(</span>w, <span style=color:#e6db74>&#34;not found&#34;</span><span style=color:#f92672>)</span>
+         .          .     39:<span style=color:#f92672>}</span>
          .          .     40:
-</code></pre><p>首先使用命令</p>
+</code></pre></div><p>首先使用命令</p>
 <pre tabindex=0><code>go tool pprof http://localhost:8080/debug/pprof/allocs
 </code></pre><p>进入pprof工具的交互模式，然后输人<code>top 5 -cum</code>查看分配内存最多的5个函数，从输出结果我们可以看出，<code>slowGC</code>函数分配了7GB左右的内存，这有一些奇怪，然后我们可以执行<code>list slowGC</code>命令，可以看出在第33行调用的操作字符串的方法分配内存最多，至此原因大概明白了，golang中string类型是不可变的，每次调用<code>strings.ToLower()</code>方法时候都会申请内存分配一个新的字符串，最后就造成的每次循环中都会申请一块新内存，从而造成GC压力（调用ToLower()方法只是为了举例说明GC问题，并无实际的意义）。我们可以针对这个问题做一下简单的修改，将第33行的ToLower()函数移动到循环之外：</p>
 <pre tabindex=0><code>package main
