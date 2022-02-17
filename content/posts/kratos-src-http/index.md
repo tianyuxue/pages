@@ -32,7 +32,7 @@ Kratos http模块叫做blademaster，其主要设计参考了借鉴Gin的代码�
 
 Kratos使用`struct Engine`封装了上面3个对象，Engine对象的定义如下：
 
-```
+```go 
 type Engine struct {
 	RouterGroup  // 用于注册路由信息
 
@@ -77,7 +77,7 @@ type Engine struct {
 
 每一个`Context`对象中保存了它所需要的Handler，`Context`对象的定义如下:
 
-```
+```go
 type Context struct {
 	context.Context  // 提供golang标准context的接口
 
@@ -113,7 +113,7 @@ type Context struct {
 
 blademaster直接使用了golang官方的`http.Server`包。在Engine对象的启动代码`Run()`方法可以看到：
 
-```
+```go
 func (engine *Engine) Run(addr ...string) (err error) {
 	address := resolveAddress(addr)
 	server := &http.Server{
@@ -126,9 +126,10 @@ func (engine *Engine) Run(addr ...string) (err error) {
 	}
 	return
 }
+```
 
 代码中启动了`http.Server`，在`Engine.ServeHttp()`方法（代码如下）中可以看到，Engine接管了所有的http请求，每当请求到来时候，就从Context Pool中获取一个Context对象，处理完毕后归还到Context Pool中。
-
+```go
 // ServeHTTP conforms to the http.Handler interface.
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	c := engine.pool.Get().(*Context)
@@ -149,7 +150,7 @@ func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 在blademaster的代码中，每一个Http方法，比如GET、POST方法，其路由信息存储在一个基数树中，所有Http方法的路由信息构成了一个森林，存储在`Engine`结构体的`methodTrees`对象中。树中每一个节点的定义如下：
 
-```
+```go
 type node struct {
 	path      string // 存储的路径
 	indices   string
@@ -176,7 +177,7 @@ CORS用来支持浏览器跨域请求，Kratos的http模块提供了支持CORS�
 
 Kratos通过传入**地址数组**创建出CORS middleware，创建代码如下：
 
-```
+```go
 // CORS returns the location middleware with default configuration.
 // 传入允许访问的跨域地址
 func CORS(allowOriginHosts []string) HandlerFunc {
@@ -216,9 +217,11 @@ func newCORS(config *CORSConfig) HandlerFunc {
 		cors.applyCORS(c)
 	}
 }
+```
 
 `cors.applyCORS()` 方法中实现CORS的验证逻辑，代码如下，具体细节可以参考注释。
 
+```go
 func (cors *cors) applyCORS(c *Context) {
 	origin := c.Request.Header.Get("Origin")
 	// 通过http header中的orgin判断是否是跨域请求
@@ -256,7 +259,7 @@ CSRF指的是跨站请求伪造攻击，通常造成影响较为严重。对CSRF
 
 Kratos对CSRF的防护做的很基础，只是检查了Http Header中的Referer字段是否合法，代码如下：
 
-```
+```go
 // CSRF returns the csrf middleware to prevent invalid cross site request.
 // Only referer is checked currently.
 func CSRF(allowHosts []string, allowPattern []string) HandlerFunc {
@@ -311,7 +314,7 @@ func CSRF(allowHosts []string, allowPattern []string) HandlerFunc {
 
 kratos 借鉴了 Sentinel 项目的自适应限流系统，通过综合分析服务的 cpu 使用率、请求成功的 qps 和请求成功的 rt 来做自适应限流保护。这篇文章只讨论http模块，具体的限流算法我会另外选择文章来讨论。Kratos也将限流功能以中间件方式实现：
 
-```
+```go
 // Limit return a bm handler func.
 func (b *RateLimiter) Limit() HandlerFunc {
 	return func(c *Context) {
@@ -341,7 +344,7 @@ func (b *RateLimiter) Limit() HandlerFunc {
 
 blademaster中的日志功能与其他框架类似，提供了http请求相关信息的记录，Log中间件的具体代码如下：
 
-```
+```go
 // Logger is logger  middleware
 func Logger() HandlerFunc {
 	const noUser = "no_user"
@@ -413,7 +416,7 @@ func Logger() HandlerFunc {
 
 blademaster中Trace信息的记录方式同日志信息一样，其实现代码如下：
 
-```
+```go
 // Trace is trace middleware
 func Trace() HandlerFunc {
 	return func(c *Context) {
@@ -459,7 +462,7 @@ func Trace() HandlerFunc {
 
 上面已经讨论过，blademaster使用的一个请求一个goroutine的IO模型，如果goroutine出现panic怎么办？这时候u需要把错误信息传递给调用方，但是panic会导致整个进程挂掉，这显然是不合理的，blademaster的recovery中间件就是用来**将panic信息转化为http 500的错误信息**，即保证进程运行，也把错误信息返回给客户端，类似于Spring中的Global Exception Handler。其实现代码如下：
 
-```
+```go
 // Recovery returns a middleware that recovers from any panics and writes a 500 if there was one.
 func Recovery() HandlerFunc {
 	return func(c *Context) {

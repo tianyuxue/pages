@@ -30,7 +30,7 @@ Kratos提供了缓存相关的常用功能，见下表：
 
 Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于`tool/kartos-gen-bts/test-data/dao.bts.go`文件中的`Demos()`方法，具体含义可以参考代码中的注释：
 
-```
+```go
 // Demos get data from cache if miss will call source method, then add to cache.
 func (d *dao) Demos(c context.Context, keys []int64) (res map[int64]*Demo, err error) {
 	if len(keys) == 0 {
@@ -132,7 +132,7 @@ Krato tool genbts 工具提供了配置项-`nullcache`来避免缓存穿透，�
 
 这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：
 
-```
+```go
 // A Group is a collection of goroutines working on subtasks that are part of
 // the same overall task.
 //
@@ -190,7 +190,7 @@ func (g *Group) Wait() error {
 
 fanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了**buffer类型的channel来存储任务**，其处理任务的核心代码为：
 
-```
+```go
 // New new a fanout struct.
 func New(name string, opts ...Option) *Fanout {
 	if name == "" {
@@ -242,7 +242,7 @@ func (c *Fanout) proc() {
 
 具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：
 
-```
+```go
 const _metricNamespace = "cache"
 
 // be used in tool/kratos-gen-bts
@@ -272,19 +272,19 @@ var (
 
 要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下`-singleflight=true`配置：
 
-```
+```go
 // bts: -sync=true -nullcache=&Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true
 Demo(c context.Context, key int64) (*Demo, error)
 ```
 
 生成代码中增加了一个全局变量`cacheSingleFlights`限制回源请求的并发度：
 
-```
+```go
 var cacheSingleFlights = [1]*singleflight.Group{{}}
 ```
 
 然后在具体的回源代码中：
-```
+```go
 // Demo get data from cache if miss will call source method, then add to cache.
 func (d *dao) Demo(c context.Context, key int64) (res *Demo, err error) {
 	addCache := true

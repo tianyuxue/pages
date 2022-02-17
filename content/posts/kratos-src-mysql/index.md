@@ -42,7 +42,7 @@ Kratos的数据层代码主要是对Golang SDK的二次封装。在GolangSDK中�
 
 Kratos从DAO层的代码层面实现了对MySQL读写分离的支持，并未使用数据库中间件。首先看下Kratos需要用户提供的MySQL集群配置信息：
 
-```
+```go
 pkg/database/sql/mysql.go
 type Config struct {
     DSN          string          // write data source name.
@@ -59,7 +59,7 @@ type Config struct {
 
 可以看出，`DSN`和`ReadDSN`分别存储了MySQL主节点地址和从节点地址，从节点地址有多个。Kratos会根据上述配置，生成如下的连接池对象：
 
-```
+```go
 type DB struct {
 write  *conn   //主节点连接池，conn定义见下文
 read   []*conn //从节点连接池
@@ -70,7 +70,7 @@ master *DB      //MySQL的主节点
 
 DB对象使用`master`字段冗余存储主节点的信息，用来支持一些特定业务场景下，必须查询主库的操作。`write/read`字段分别表示数据库具体连接池，从`conn`类型的定义可以看到，其内部封装了Golang SDK中的 `sql.DB`对象：
 
-```
+```go
 // conn database connection
 type conn struct {
     *sql.DB  // 对Golang SDK连接池的封装，用来支持MySQL读写分离
@@ -82,7 +82,7 @@ type conn struct {
 
 这样通过把Golang SDK中的`sql.DB`嵌入到`conn`对象中，再把多个`conn`对象封装到`DB`对象中，就使Kratos的`DB`对象支持了对MySQL集群的多个实例的读写。下面是Kratos中查询从库的方法：
 
-```
+```go
 // Query executes a query that returns rows, typically a SELECT. The args are
 // for any placeholder parameters in the query.
 func (db *DB) Query(c context.Context, query string, args ...interface{}) (rows *Rows, err error) {
@@ -114,7 +114,7 @@ func (db *DB) readIndex() int {
 
 除了读操作之外，对于写入的操作，Kratos同样对Golang SDK中sql.DB的如下方法进行了封装：
 
-```
+```go
 // 启动MySQL事务
 func (db *DB) Begin(c context.Context) (tx *Tx, err error) {
 	return db.write.begin(c)
@@ -140,7 +140,7 @@ func (db *DB) Prepared(query string) (stmt *Stmt) {
 
 再看一下prepare statement的创建, Kratos的提供了`Prepared()`方法，如果创建prepare statement错误，那么启动一个goroutine不断重试，直到创建成功了，就用cas方法把prepare statement存储在Kratos封装的`Stmt`对象中， 个人感觉这样不够优雅，不知道b站内部是怎么用这个方法的：
 
-```
+```go
 // Stmt prepared stmt.
 type Stmt struct {
 	db    *conn
@@ -194,7 +194,7 @@ func (db *conn) prepared(query string) (stmt *Stmt) {
 
 Kratos在每个与数据库交互方法中记录了慢查询日志，结合关键字`defer`，其实现方法非常简单：
 
-```
+```go
 ...
 func (db *conn) Query(c context.Context) (tx *Tx, err error) {
 	// 获取当前时间，通过defer来确定结束时间
@@ -224,7 +224,7 @@ func slowLog(statement string, now time.Time) {
 - 当前数据库连接数
 
 具体的代码如下：
-```
+```go
 pkg/database/sql/metrics.go
 
 package sql
@@ -272,7 +272,7 @@ Kratos已经把上面监控数据嵌入在封装好的数据库交互的方法�
 
 Kratos的DB对象内置了断路器，存储在DB对象的breaker字段中，断路器的接口很简单，主要提供了如下三个方法：
 
-```
+```go
 // Breaker 定义了断路器接口
 type Breaker interface {
 	Allow() error
@@ -319,7 +319,7 @@ func (db *conn) exec(c context.Context, query string, args ...interface{}) (res 
 
 Kratos通过context来传递trace信息，见如下代码：
 
-```
+```go
 if t, ok := trace.FromContext(c); ok {
         t = t.Fork(_family, "exec")
 	t.SetTag(trace.String(trace.TagAddress, db.addr), trace.String(trace.TagComment, query))

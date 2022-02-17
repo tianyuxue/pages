@@ -53,12 +53,12 @@ url = "https://github.com/tianyuxue"
   [markup.highlight]
     anchorLineNos = false
     codeFences = true
-    guessSyntax = false
+    guessSyntax = true
     hl_Lines = ''
     lineAnchors = ''
     lineNoStart = 1
     lineNos = false
     lineNumbersInTable = true
     noClasses = true
-    style = 'monokai'
+    style = 'monokailight'
     tabWidth = 4

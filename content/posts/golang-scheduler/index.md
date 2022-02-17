@@ -75,7 +75,7 @@ exitsyscall() 函数
 
 下面通过一个简单的示例来验证上面所说的理论是否正确，示例代码如下，代码功能可以参考注释：
 
-```
+```go
 package main
 
 import (
@@ -139,7 +139,7 @@ func infinitLoop(stopChan chan struct{}) {
 
 执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：
 
-```
+```shell
 go build main.go
 GOMAXPROCS=2 GODEBUG=schedtrace=1000,scheddetail=1 ./main
 ```
@@ -184,7 +184,7 @@ golang在这方面是如何做的呢？`net/http` 包实现了名为`netpoller` 
 
 还有一个问题，就是netpooler是什么时候启动的呢？
 
-```
+```go
 runtime/proc.go:110
 
 func main() {
@@ -253,7 +253,7 @@ func main() {
 
 设置了`godebug=scheddetail=1` 情况下，假设示例输出如下：
 
-```
+```shell
 $ GODEBUG=scheddetail=1,schedtrace=1000 ./main
 SCHED 1000ms: gomaxprocs=4 idleprocs=0 threads=5 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0
   P0: status=1 schedtick=2 syscalltick=0 m=3 runqsize=3 gfreecnt=0
@@ -287,7 +287,7 @@ G的信息如下：
 - lockedm：M是否被锁定
 - G的状态表位于文件`runtime2.go`
 
-```
+```go
 // defined constants
 const (
 	// G status
@@ -341,7 +341,7 @@ const (
 
 - G阻塞的原因如下
 
-```
+```go
 runtime2.go
 
 const (
@@ -394,7 +394,7 @@ P的信息如下：
 - gfreecnt: 可用的 G (Gdead state).
 - P的状态表如下：
 
-```
+```go
 const (
 	// P status
 	// _Pidle means a P is not being used to run user code or the
