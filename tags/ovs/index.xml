@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>ovs on ACoder</title>
+    <link>https://tianyuxue.github.io/tags/ovs/</link>
+    <description>Recent content in ovs on ACoder</description>
+    <image>
+      <url>https://tianyuxue.github.io/</url>
+      <link>https://tianyuxue.github.io/</link>
+    </image>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Thu, 17 Feb 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/tags/ovs/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Open vSwitch学习 - 1 开发环境搭建</title>
+      <link>https://tianyuxue.github.io/posts/ovs-learing-1/</link>
+      <pubDate>Thu, 17 Feb 2022 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/ovs-learing-1/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文介绍了OVS的基本功能以及开发环境搭建的过程&lt;/p&gt;
+&lt;/blockquote&gt;</description>
+    </item>
+    
+  </channel>
+</rss>

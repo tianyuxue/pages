@@ -1,16 +1,86 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on ACoder</title><link>https://tianyuxue.github.io/posts/</link><description>Recent content in Posts on ACoder</description><generator>Hugo -- gohugo.io</generator><language>zh-cn</language><lastBuildDate>Tue, 19 Jan 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Kratos源码分析 - http部分</title><link>https://tianyuxue.github.io/posts/kratos-src-http/</link><pubDate>Tue, 19 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/kratos-src-http/</guid><description>&lt;blockquote>
-&lt;p>本文的讨论基于Kratos v1.0.x版本&lt;/p>
-&lt;/blockquote>
-&lt;p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述。&lt;/p></description></item><item><title>Kratos源码分析 - 缓存部分</title><link>https://tianyuxue.github.io/posts/kratos-src-cache/</link><pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/kratos-src-cache/</guid><description>&lt;blockquote>
-&lt;p>本文的讨论基于Kratos v1.0.x版本&lt;/p>
-&lt;/blockquote>
-&lt;p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。&lt;/p></description></item><item><title>Kratos 源码分析 - MySQL部分</title><link>https://tianyuxue.github.io/posts/kratos-src-mysql/</link><pubDate>Thu, 07 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/kratos-src-mysql/</guid><description>&lt;blockquote>
-&lt;p>本文的讨论基于Kratos v1.0.x版本&lt;/p>
-&lt;/blockquote>
-&lt;p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与MySQL相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。&lt;/p></description></item><item><title>关于Golang GC的一些分析</title><link>https://tianyuxue.github.io/posts/golang-gc/</link><pubDate>Sat, 02 Jan 2021 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/golang-gc/</guid><description>&lt;blockquote>
-&lt;p>本文介绍了Golang中GC的执行过程，然后用一个例子，结合golang提供的GC日志和pprof工具，介绍GC调优的基本方法&lt;/p>
-&lt;p>本文的讨论基于golang 1.15.4版本&lt;/p>
-&lt;/blockquote></description></item><item><title>关于Golang调度器的一些分析</title><link>https://tianyuxue.github.io/posts/golang-scheduler/</link><pubDate>Sat, 26 Dec 2020 00:00:00 +0000</pubDate><guid>https://tianyuxue.github.io/posts/golang-scheduler/</guid><description>&lt;blockquote>
-&lt;p>本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法&lt;/p>
-&lt;p>本文的讨论基于golang 1.15.4版本&lt;/p>
-&lt;/blockquote></description></item></channel></rss>
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Posts on ACoder</title>
+    <link>https://tianyuxue.github.io/posts/</link>
+    <description>Recent content in Posts on ACoder</description>
+    <image>
+      <url>https://tianyuxue.github.io/</url>
+      <link>https://tianyuxue.github.io/</link>
+    </image>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Thu, 17 Feb 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Open vSwitch学习 - 1 开发环境搭建</title>
+      <link>https://tianyuxue.github.io/posts/ovs-learing-1/</link>
+      <pubDate>Thu, 17 Feb 2022 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/ovs-learing-1/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文介绍了OVS的基本功能以及开发环境搭建的过程&lt;/p&gt;
+&lt;/blockquote&gt;</description>
+    </item>
+    
+    <item>
+      <title>Kratos源码分析 - http部分</title>
+      <link>https://tianyuxue.github.io/posts/kratos-src-http/</link>
+      <pubDate>Tue, 19 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/kratos-src-http/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述。&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Kratos源码分析 - 缓存部分</title>
+      <link>https://tianyuxue.github.io/posts/kratos-src-cache/</link>
+      <pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/kratos-src-cache/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Kratos 源码分析 - MySQL部分</title>
+      <link>https://tianyuxue.github.io/posts/kratos-src-mysql/</link>
+      <pubDate>Thu, 07 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/kratos-src-mysql/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与MySQL相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>关于Golang GC的一些分析</title>
+      <link>https://tianyuxue.github.io/posts/golang-gc/</link>
+      <pubDate>Sat, 02 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/golang-gc/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文介绍了Golang中GC的执行过程，然后用一个例子，结合golang提供的GC日志和pprof工具，介绍GC调优的基本方法&lt;/p&gt;
+&lt;p&gt;本文的讨论基于golang 1.15.4版本&lt;/p&gt;
+&lt;/blockquote&gt;</description>
+    </item>
+    
+    <item>
+      <title>关于Golang调度器的一些分析</title>
+      <link>https://tianyuxue.github.io/posts/golang-scheduler/</link>
+      <pubDate>Sat, 26 Dec 2020 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/posts/golang-scheduler/</guid>
+      <description>&lt;blockquote&gt;
+&lt;p&gt;本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法&lt;/p&gt;
+&lt;p&gt;本文的讨论基于golang 1.15.4版本&lt;/p&gt;
+&lt;/blockquote&gt;</description>
+    </item>
+    
+  </channel>
+</rss>
