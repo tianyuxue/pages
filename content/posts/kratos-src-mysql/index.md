@@ -1,6 +1,9 @@
 ---
 title: "Kratos 源码分析 - MySQL部分"
 date: "2021-01-07"
+cover:
+    image: "images/mountain.jpg"
+    hidden: false
 categories: 
   - "golang"
   - "kratos"

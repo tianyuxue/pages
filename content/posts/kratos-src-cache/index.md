@@ -1,6 +1,9 @@
 ---
 title: "Kratos源码分析 - 缓存部分"
 date: "2021-01-11"
+cover:
+    image: "images/mountain.jpg"
+    hidden: false
 categories: 
   - "golang"
   - "kratos"

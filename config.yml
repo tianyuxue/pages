@@ -1,0 +1,136 @@
+baseURL: 'https://tianyuxue.github.io/'
+title: ACoder
+languageCode: zh-cn
+theme: PaperMod
+resourceDir: ./resources
+googleAnalytics: G-0T00DX73T1
+
+enableRobotsTXT: true
+buildDrafts: false
+buildFuture: false
+buildExpired: false
+minify:
+  disableXML: true
+  minifyOutput: true
+paginate: 5
+
+menu:
+  main:
+
+    - identifier: search
+      name: 搜索 
+      url: /search/
+      weight: 1
+    - identifier: post
+      name: 文章
+      url: /posts/
+      weight: 10
+    - identifier: categories
+      name: 分类
+      url: /categories/
+      weight: 20
+    - identifier: tags
+      name: 标签
+      url: /tags/
+      weight: 30
+    - identifier: about
+      name: 关于我
+      pre: <i class='fa fa-heart'></i>
+      url: /about/
+      weight: 40
+    - identifier: archives
+      name: 归档
+      url: /archives
+      weight: 50
+
+sitemap:
+  changefreq: monthly
+  priority: 0.5
+  filename: sitemap.xml
+
+params:
+  env: production # to enable google analytics, opengraph, twitter-cards and schema.
+  title: ACoder
+  description: "一些技术分享"
+  keywords: ['SND', 'OVS', '云计算']
+  author: jitianyu
+  images: [""]
+  DateFormat: "January 2, 2006"
+  defaultTheme: auto # dark, light
+  disableThemeToggle: false
+
+  ShowReadingTime: true
+  ShowShareButtons: false
+  ShowPostNavLinks: true
+  ShowBreadCrumbs: true
+  ShowCodeCopyButtons: false
+  disableSpecial1stPost: false
+  disableScrollToTop: false
+  comments: false
+  hidemeta: false
+  hideSummary: false
+  showtoc: false
+  tocopen: false
+
+  assets:
+    # disableHLJS: true # to disable highlight.js
+    # disableFingerprinting: true
+    favicon: "images/code.png"
+    favicon16x16: "images/code.png"
+    favicon32x32: "images/code.png"
+    apple_touch_icon: "images/code.png"
+    safari_pinned_tab: "images/code.png"
+  label:
+    text: "ACoder"
+    icon: images/code.png
+    iconHeight: 35
+  # profile-mode
+  profileMode:
+    enabled: false # needs to be explicitly set
+    title: "欢迎 \U0001F44B\U0001F44B"
+    subtitle: "这里有些我的技术分享\U0001F643"
+    imageUrl: "images/profile.png"
+    imageWidth: 120
+    imageHeight: 120
+    imageTitle: my image
+
+  # home-info mode
+  homeInfoParams:
+    Title: "欢迎 \U0001F44B\U0001F44B"
+    Content: "这里有些我的技术分享\U0001F643"
+  socialIcons:
+    - name: github
+      url: 'https://github.com/tianyuxue'
+  analytics:
+    google:
+      SiteVerificationTag: "G-0T00DX73T1"
+  cover:
+    hidden: true # hide everywhere but not in structured data
+    hiddenInList: true # hide on list pages and home
+    hiddenInSingle: true # hide on single page
+  fuseOpts:
+    isCaseSensitive: false
+    shouldSort: true
+    location: 0
+    distance: 1000
+    threshold: 0.4
+    minMatchCharLength: 0
+    keys: ["title", "permalink", "summary", "content"]
+
+outputs:
+    home:
+        - HTML
+        - RSS
+        - JSON # is necessary
+markup:
+  highlight:
+    anchorLineNos: false
+    codeFences: true
+    guessSyntax: false
+    hl_Lines: ""
+    lineAnchors: ""
+    lineNoStart: 1
+    lineNos: true
+    lineNumbersInTable: true
+    noClasses: true
+    tabWidth: 4

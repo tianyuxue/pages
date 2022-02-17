@@ -1,6 +1,9 @@
 ---
 title: "关于Golang GC的一些分析"
 date: "2021-01-02"
+cover:
+    image: "images/mountain.jpg"
+    hidden: false
 categories: 
   - "golang"
 tags: 

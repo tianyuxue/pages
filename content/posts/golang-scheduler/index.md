@@ -1,6 +1,9 @@
 ---
 title: "关于Golang调度器的一些分析"
 date: "2020-12-26"
+cover:
+    image: "images/mountain.jpg"
+    hidden: false
 categories: 
   - "golang"
 tags: 

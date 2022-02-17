@@ -1,10 +1,12 @@
 ---
-title: "Open vSwitch学习 - 开发环境搭建"
+title: "Open vSwitch学习 - 1 开发环境搭建"
 date: "2022-02-17"
+cover:
+    image: "images/mountain.jpg"
+    hidden: false
 categories: 
   - "sdn"
   - "ovs"
-  - "c"
 tags: 
   - "sdn"
   - "ovs"
@@ -12,7 +14,7 @@ tags:
 > 本文介绍了OVS的基本功能以及开发环境搭建的过程
 
 <!--more-->
-# 1 基本功能
+## 1 基本功能
 
 ovs是一个分层的软件交换机，支持vlan、网卡bond、限速、vxlan隧道等功能、支持openflow1.0+协议，提供数据面高性能的转发功能。从部署视图看，进程结构如下：
 
@@ -37,14 +39,14 @@ ovs是一个分层的软件交换机，支持vlan、网卡bond、限速、vxlan�
 
   - 支持流表解析的tcpdump工具
 
-# 2 为什么要使用 ovs
+## 2 为什么要使用 ovs
 
 虚拟化环境下，Hypervisors 需要二层Bridge功能将同一宿主机上的VM流量转发，目前Linux Bridge功能已经稳定完善，但是对于多宿主机之间VM迁移，网络状态变更支持不够完善，针对这些问题，ovs提供了下列功能：
 
 - 快速响应网络环境变更
 - 数据面可以集成专用的硬件芯片，做到线性转发
 
-# 3 开发环境搭建
+## 3 开发环境搭建
 
 以Ubuntu20.04为例，从源码编译ovs的过程如下：
 
