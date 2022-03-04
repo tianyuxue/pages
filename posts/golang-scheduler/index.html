@@ -3,8 +3,7 @@
 <meta http-equiv=x-ua-compatible content="IE=edge">
 <meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no">
 <meta name=robots content="index, follow">
-<title>关于Golang调度器的一些分析 | ACoder</title>
-<meta name=keywords content="golang,调度器">
+<title>关于Golang调度器的一些分析 | ACoder</title><meta name=keywords content="golang,调度器">
 <meta name=description content="
 本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法
 本文的讨论基于golang 1.15.4版本
@@ -14,7 +13,7 @@
 <meta name=google-site-verification content="G-0T00DX73T1">
 <link crossorigin=anonymous href=/assets/css/stylesheet.min.c88963fe2d79462000fd0fb1b3737783c32855d340583e4523343f8735c787f0.css integrity="sha256-yIlj/i15RiAA/Q+xs3N3g8MoVdNAWD5FIzQ/hzXHh/A=" rel="preload stylesheet" as=style>
 <link rel=preload href=images/code.png as=image>
-<script defer crossorigin=anonymous src=/assets/js/highlight.min.7680afc38aa6b15ddf158a4f3780b7b1f7dde7e91d26f073e6229bb7a0793c92.js integrity="sha256-doCvw4qmsV3fFYpPN4C3sffd5+kdJvBz5iKbt6B5PJI=" onload=hljs.initHighlightingOnLoad()></script>
+<script defer crossorigin=anonymous src=/assets/js/highlight.min.4dcb3c4f38462f66c6b6137227726f5543cb934cca9788f041c087e374491df2.js integrity="sha256-Tcs8TzhGL2bGthNyJ3JvVUPLk0zKl4jwQcCH43RJHfI=" onload=hljs.initHighlightingOnLoad()></script>
 <link rel=icon href=https://tianyuxue.github.io/images/code.png>
 <link rel=icon type=image/png sizes=16x16 href=https://tianyuxue.github.io/images/code.png>
 <link rel=icon type=image/png sizes=32x32 href=https://tianyuxue.github.io/images/code.png>
@@ -23,11 +22,8 @@
 <meta name=theme-color content="#2e2e33">
 <meta name=msapplication-TileColor content="#2e2e33">
 <noscript>
-<style>#theme-toggle,.top-link{display:none}</style>
-<style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--hljs-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style>
-</noscript>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-0T00DX73T1"></script>
-<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-0T00DX73T1',{anonymize_ip:!1})}</script>
+<style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--hljs-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><script async src="https://www.googletagmanager.com/gtag/js?id=G-0T00DX73T1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-0T00DX73T1",{anonymize_ip:!1})}</script>
 <meta property="og:title" content="关于Golang调度器的一些分析">
 <meta property="og:description" content="
 本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法
@@ -46,10 +42,9 @@
 本文的讨论基于golang 1.15.4版本
 ">
 <script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://tianyuxue.github.io/posts/"},{"@type":"ListItem","position":2,"name":"关于Golang调度器的一些分析","item":"https://tianyuxue.github.io/posts/golang-scheduler/"}]}</script>
-<script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"关于Golang调度器的一些分析","name":"关于Golang调度器的一些分析","description":" 本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法\n本文的讨论基于golang 1.15.4版本\n","keywords":["golang","调度器"],"articleBody":" 本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法\n本文的讨论基于golang 1.15.4版本\n 1 概述 golang目前版本(1.15)使用了GMP调度模型，本文主要从实践的角度去理解golang调度器的一些原理，关于调度理论的详细解释，可以参考如下资源：\n 关于调度原理的理论讲解可以参考链接[1] golang也提供了trace工具来收集调度数据，具体使用可以参考链接[2] 对于trace信息的解释，可以参考本文的附录，也可以参考[3]  2 触发调度的时机以及处理方法 调度是为了保证cpu等物理资源得到充分的利用，那什么时候需要触发调度呢？答案一定是用户代码无法充分利用cpu等物理资源的时候才触发。通过调度这种方式，把cpu等物理资源的使用权让给其他调度单位，增加用户代码的执行效率。\n对于线程或者协程而言，阻塞会导致物理资源的占用，无法执行其他待执行的用户代码，因此阻塞是触发调度的主要原因。除此之外，为了避免饥饿(Starvation)而使用的公平调度算法也会触发调度。在golang中常见的触发调度的事件有如下几种：\n 阻塞式系统调用 非阻塞系统调用 读写channel mutex的加锁和释放锁 定时器 公平调度算法引发的调度（本文暂未分析)  下面对上述情况依次进行分析。\n2.1 阻塞式系统调用引发的调度 首先思考如果Goroutine进行了阻塞式的系统调用会发生什么？为了增加物理资源的使用率，这个时候应该触发调度，把物理资源让给其他Goroutine执行。那调度相关的逻辑处理怎么嵌入到系统调用中呢？golang的syscall包对系统调用进行了封装，在系统调用前后增加了部分调度相关的逻辑。以x86平台为例，具体实现位于**/src/syscall/asm_linux_amd64.s** 中 ， 代码如下：\n对系统调用的封装\n可以看到，golang使用了类似代理模式，在系统调用前后分别插入了如下函数：\n runtime.entersyscall() runtime.exitsyscall()  那么这两个函数做了什么呢？\n runtime.entersyscall() 实现了如下逻辑：  由于进行了系统调用，当前M（Machine）会阻塞 当前G对应的P(Processor)会与当前M(Machine）解绑 当前G对应的P(Processor)会绑定到一个其他可用M(Machine)上，继续执行P自己的任务队列中的其他G(groutines) 经过上面三步，本质上是新启动了一个内核线程继续执行P中未完成的工作，原线程阻塞等待系统调用的结束。golang通过这种方式保证了物理资源的充分利用  这部分逻辑位于/src/runtime/proc.c中：      entersyscall() 函数\n runtime.exitsyscall() 实现了如下逻辑：  当系统调用完成，G变为Runnable状态，exitsyscall()会调用mcall() 触发一个调度事件，把G放在可用的P中的任务队列中，等待执行 这部分代码位同样位于/src/runtime/proc.c中    exitsyscall() 函数\n2.1.1 验证阻塞式系统调用导致的M与P解绑 下面通过一个简单的示例来验证上面所说的理论是否正确，示例代码如下，代码功能可以参考注释：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59  package main import ( \"fmt\" \"net\" \"sync\" \"time\" ) func main() { stopChan := make(chan struct{}) wg := sync.WaitGroup{} wg.Add(1) // 2秒钟后停止 InfnityLoop  go func() { timer := time.NewTimer(2 * time.Second) timer.C close(stopChan) }() go func() { defer wg.Done() sysCall(stopChan) }() wg.Wait() } /** * sysCall函数首先执行一个无限循环模拟cpu占用 * 2秒后停止循环，进行一个阻塞5秒的iowait系统调用 * 系统调用完成后继续进行无限循环 */ func sysCall(stopChan chan struct{}) { // 首先开始无限循环，模拟cpu占用  infinitLoop(stopChan) fmt.Println(\"begin syscall\") // 这里通过对一个不存在的地址进行tcp连接来模拟耗时的阻塞式系统调用  _, err := net.DialTimeout(\"tcp\", \"172.20.4.111:80\", 5 *time.Second) if err != nil { fmt.Println(err.Error()) } fmt.Println(\"finish syscall\") // 系统调用结束后继续循环，模拟cpu占用  ch := make(chan struct{}) infinitLoop(ch) } func infinitLoop(stopChan chan struct{}) { for { select { case stopChan: return default: } } }   执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：\n1 2  go build main.go GOMAXPROCS=2 GODEBUG=schedtrace=1000,scheddetail=1 ./main   程序执行大概10秒后按下ctrl + c 终止程序，可以得到如下输出(各个字段的具体含义可参考附录)：\n系统调用后M与P解绑\n从上图的输出中可以得到如下结论：\n 系统调用之前  代码1处可以看出P1处于运行状态(status=1) 代码2处可以看出M0正在与P1绑定，并且正在执行id为20的Goroutine   在系统调用完成之前  代码3处可以看到由于系统调用，P1已经处于idle状态 代码4处可以看到由于系统调用，M0已经空闲(p=-1, curg=-1)，不再与P1绑定 代码5处可以看到此时G处于阻塞状态(status=4), 并且阻塞的原因是IO wait     在系统调用完成之后可以看到（上图）  由于代码中的infinityLoop()函数，P0恢复为运行状态(status=1) M0重新与P0绑定，开始执行用户代码(p=0 curg=20)    总结：可以看出，阻塞式的系统调用会引起M，与P的解绑，golang正是通过这种方式保证了groutine的并发度不被系统调用给阻塞掉，以达到充分利用物理资源的目的。M与P解绑和重新绑定是通过操作系统的内核线程切换完成的，因此这种情况下调度的本质是真正的线程上下文切换。\n2.2 其他情况下的调度 2.2.1 非阻塞式系统调用引发的调度 Golang处理并发的编程范式是：将所有的外部调用都进行阻塞式的处理，通过goroutine和channel来处理阻塞调用的并发问题，这与其他语言使用future和callback是完全不同的思路。通过2.1部分可以看出，每一次阻塞式的系统调用都会新建一个内核线程并且进行线程切换，这种方案在频繁进行系统调用时候会发生什么呢？显而易见的，大量的内核线程会被创建出来，并且随着系统调用开始和结束，不断的进行线程上下文切换。这个问题在golang的http server中尤为明显，试想一下，如果golang的http server使用这种方案，是不是一夜回到解放前的BIO线程模型了？当前主流的网络框架的IO模型都使用IO多路复用模型，具体而言就是依靠epoll/kquue/IOCP等系统调用，使用Reactor模式处理网络请求，比如大名鼎鼎的Netty 网络框架。\ngolang在这方面是如何做的呢？net/http 包实现了名为netpoller 的结构体，进行了如下的工作：\n netpoller 使用epoll/kqueue/IOCP等非阻塞系统调用等待IO事件的到来 真正处理请求的goroutine阻塞在netpoller上 有IO事件到来时候netpooler就通知阻塞的goroutine开始工作  可以看出，netpooler实际上是一个非阻塞调用与阻塞调用之间的转换器，将非阻塞的系统调用成功应用在了golang使用阻塞goroutine+channel的编程范式上了。 而这种由netpooler引发的调度，实际上操作系统的内核线程是无感的，从内核线程的视角看，执行的都是连续的内核空间代码。\n还有一个问题，就是netpooler是什么时候启动的呢？\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20  runtime/proc.go:110 func main() { ... if GOARCH != \"wasm\" { // no threads on wasm yet, so no sysmon  systemstack(func() { newm(sysmon, nil) // 在程序启动时候，启动sysmon m  }) } // Lock the main goroutine onto this, the main OS thread,  // during initialization. Most programs won't care, but a few  // do require certain calls to be made by the main thread.  // Those can arrange for main.main to run in the main thread  // by calling runtime.LockOSThread during initialization  // to preserve the lock.  lockOSThread() ... }    编译好的程序入口位于\"**runtime/proc.go**\"， 执行main()函数时候会启动sysmon, 并绑定到一个M上执行 sysmon()函数会启动netpoller  2.2.2 读取channel以及互斥锁引发的调度 对于channel和锁等待操作，同样都是在用户空间完成的。大致原理如下：\n channel拥有两个队列存储阻塞的goroutine, 这些goroutine阻塞在接收和发送数据的状态 mutex也同样有队列存储阻塞等待的goroutine 一旦阻塞条件接触，阻塞的goroutine 就变为runnable 状态，加入到某个P的任务队列中  这部分的调度同样对操作系统内核线程是透明的，内核线程认为自己只是在执行用户空间代码，完全没有线程阻塞和上下文切换。\n3 结论 通过上述讨论，可以将golang的调度主要分为以下两种：\n 阻塞式系统调用会触发真正的线程上下文切换 netpoller、读写channel、获取锁等操作引发的调度只在用户空间完成，操作系统对此是无感的，这也正是golang这门语言简单，高效的原因的之一。  4 不足 本文未探讨golang调度器提供的一些公平调度方案。\n对具体的GMP的调度算法未做深入探究。\n参考 [1] Illustrated Tales of Go Runtime Scheduler. https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b\n[2] go tool trace. https://making.pusher.com/go-tool-trace\n[3] Looking at Scheduling Tracking with GODEBUG. https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html\n[4] 也谈goroutine调度器. https://tonybai.com/2017/06/23/an-intro-about-goroutine-scheduler/\n[5] Linux 的 I/O 模型以及 Go 的网络模型实现. https://xiaoxubeii.github.io/articles/linux-io-models-and-go-network-model-2/\n[6] golang netpoller. https://yizhi.ren/2019/06/08/gonetpoller/\n附录： scheddetail 参数说明 设置了godebug=scheddetail=1 情况下，假设示例输出如下：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24  $ GODEBUG=scheddetail=1,schedtrace=1000 ./main SCHED 1000ms: gomaxprocs=4 idleprocs=0 threads=5 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0 P0: status=1 schedtick=2 syscalltick=0 m=3 runqsize=3 gfreecnt=0 P1: status=1 schedtick=2 syscalltick=0 m=4 runqsize=1 gfreecnt=0 P2: status=1 schedtick=2 syscalltick=0 m=0 runqsize=1 gfreecnt=0 P3: status=1 schedtick=1 syscalltick=0 m=2 runqsize=1 gfreecnt=0 M4: p=1 curg=18 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1 M3: p=0 curg=22 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1 M2: p=3 curg=24 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1 M1: p=-1 curg=-1 mallocing=0 throwing=0 preemptoff= locks=1 dying=0 spinning=false blocked=false lockedg=-1 M0: p=2 curg=26 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1 G1: status=4(semacquire) m=-1 lockedm=-1 G2: status=4(force gc (idle)) m=-1 lockedm=-1 G3: status=4(GC sweep wait) m=-1 lockedm=-1 G17: status=1() m=-1 lockedm=-1 G18: status=2() m=4 lockedm=-1 G19: status=1() m=-1 lockedm=-1 G20: status=1() m=-1 lockedm=-1 G21: status=1() m=-1 lockedm=-1 G22: status=2() m=3 lockedm=-1 G23: status=1() m=-1 lockedm=-1 G24: status=2() m=2 lockedm=-1 G25: status=1() m=-1 lockedm=-1 G26: status=2() m=0 lockedm=-1   G的信息如下：\n status： G的状态 m：属于哪那个M lockedm：M是否被锁定 G的状态表位于文件runtime2.go  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49  // defined constants const ( // G status \t// ... \t// _Gidle means this goroutine was just allocated and has not \t// yet been initialized. \t_Gidle = iota // 0 \t// _Grunnable means this goroutine is on a run queue. It is \t// not currently executing user code. The stack is not owned. \t_Grunnable // 1 \t// _Grunning means this goroutine may execute user code. The \t// stack is owned by this goroutine. It is not on a run queue. \t// It is assigned an M and a P (g.m and g.m.p are valid). \t_Grunning // 2 \t// _Gsyscall means this goroutine is executing a system call. \t// It is not executing user code. The stack is owned by this \t// goroutine. It is not on a run queue. It is assigned an M. \t_Gsyscall // 3 \t// _Gwaiting means this goroutine is blocked in the runtime. \t// It is not executing user code. It is not on a run queue, \t// but should be recorded somewhere (e.g., a channel wait \t// queue) so it can be ready()d when necessary. The stack is \t// not owned *except* that a channel operation may read or \t// write parts of the stack under the appropriate channel \t// lock. Otherwise, it is not safe to access the stack after a \t// goroutine enters _Gwaiting (e.g., it may get moved). \t_Gwaiting // 4 \t// _Gmoribund_unused is currently unused, but hardcoded in gdb \t// scripts. \t_Gmoribund_unused // 5 \t// _Gdead means this goroutine is currently unused. It may be \t// just exited, on a free list, or just being initialized. It \t// is not executing user code. It may or may not have a stack \t// allocated. The G and its stack (if any) are owned by the M \t// that is exiting the G or that obtained the G from the free \t// list. \t_Gdead // 6 \t// _Genqueue_unused is currently unused. \t_Genqueue_unused // 7 \t// _Gcopystack means this goroutine's stack is being moved. It \t// is not executing user code and is not on a run queue. The \t// stack is owned by the goroutine that put it in _Gcopystack. \t_Gcopystack // 8 \t// _Gpreempted means this goroutine stopped itself for a \t// suspendG preemption. It is like _Gwaiting, but nothing is \t// yet responsible for ready()ing it. Some suspendG must CAS \t// the status to _Gwaiting to take responsibility for \t// ready()ing this G. \t_Gpreempted // 9    G阻塞的原因如下  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31  runtime2.go const ( waitReasonZero waitReason = iota // \"\" waitReasonGCAssistMarking // \"GC assist marking\" waitReasonIOWait // \"IO wait\" waitReasonChanReceiveNilChan // \"chan receive (nil chan)\" waitReasonChanSendNilChan // \"chan send (nil chan)\" waitReasonDumpingHeap // \"dumping heap\" waitReasonGarbageCollection // \"garbage collection\" waitReasonGarbageCollectionScan // \"garbage collection scan\" waitReasonPanicWait // \"panicwait\" waitReasonSelect // \"select\" waitReasonSelectNoCases // \"select (no cases)\" waitReasonGCAssistWait // \"GC assist wait\" waitReasonGCSweepWait // \"GC sweep wait\" waitReasonGCScavengeWait // \"GC scavenge wait\" waitReasonChanReceive // \"chan receive\" waitReasonChanSend // \"chan send\" waitReasonFinalizerWait // \"finalizer wait\" waitReasonForceGCIdle // \"force gc (idle)\" waitReasonSemacquire // \"semacquire\" waitReasonSleep // \"sleep\" waitReasonSyncCondWait // \"sync.Cond.Wait\" waitReasonTimerGoroutineIdle // \"timer goroutine (idle)\" waitReasonTraceReaderBlocked // \"trace reader (blocked)\" waitReasonWaitForGCCycle // \"wait for GC cycle\" waitReasonGCWorkerIdle // \"GC worker (idle)\" waitReasonPreempted // \"preempted\" waitReasonDebugCall // \"debug call\" )   M的信息如下：\n P: 当前与哪个P绑定 curg: 当前执行哪个G gfreecnt: 可用的 G (Gdead state). mallocing: 是否在分配内存 Throwing: 是否抛出了一场 preemptoff: 如果非空，当前执行的G不会被抢占  P的信息如下：\n status: 运行状态 Schedule tick: 调度次数 syscalltick: 系统调用的次数 M: 与哪个M进行绑定 runqsize: 运行队列的大小 gfreecnt: 可用的 G (Gdead state). P的状态表如下：  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44  const ( // P status \t// _Pidle means a P is not being used to run user code or the \t// scheduler. Typically, it's on the idle P list and available \t// to the scheduler, but it may just be transitioning between \t// other states. \t// \t// The P is owned by the idle list or by whatever is \t// transitioning its state. Its run queue is empty. \t_Pidle = iota // _Prunning means a P is owned by an M and is being used to \t// run user code or the scheduler. Only the M that owns this P \t// is allowed to change the P's status from _Prunning. The M \t// may transition the P to _Pidle (if it has no more work to \t// do), _Psyscall (when entering a syscall), or _Pgcstop (to \t// halt for the GC). The M may also hand ownership of the P \t// off directly to another M (e.g., to schedule a locked G). \t_Prunning // _Psyscall means a P is not running user code. It has \t// affinity to an M in a syscall but is not owned by it and \t// may be stolen by another M. This is similar to _Pidle but \t// uses lightweight transitions and maintains M affinity. \t// \t// Leaving _Psyscall must be done with a CAS, either to steal \t// or retake the P. Note that there's an ABA hazard: even if \t// an M successfully CASes its original P back to _Prunning \t// after a syscall, it must understand the P may have been \t// used by another M in the interim. \t_Psyscall // _Pgcstop means a P is halted for STW and owned by the M \t// that stopped the world. The M that stopped the world \t// continues to use its P, even in _Pgcstop. Transitioning \t// from _Prunning to _Pgcstop causes an M to release its P and \t// park. \t// \t// The P retains its run queue and startTheWorld will restart \t// the scheduler on Ps with non-empty run queues. \t_Pgcstop // _Pdead means a P is no longer used (GOMAXPROCS shrank). We \t// reuse Ps if GOMAXPROCS increases. A dead P is mostly \t// stripped of its resources, though a few things remain \t// (e.g., trace buffers). \t_Pdead )   ","wordCount":"1686","inLanguage":"en","image":"https://tianyuxue.github.io/images/mountain.jpg","datePublished":"2020-12-26T00:00:00Z","dateModified":"2020-12-26T00:00:00Z","author":{"@type":"Person","name":"jitianyu"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://tianyuxue.github.io/posts/golang-scheduler/"},"publisher":{"@type":"Organization","name":"ACoder","logo":{"@type":"ImageObject","url":"https://tianyuxue.github.io/images/code.png"}}}</script>
-</head>
-<body id=top>
-<script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add('dark'):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove('dark'):window.matchMedia('(prefers-color-scheme: dark)').matches&&document.body.classList.add('dark')</script>
+<script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"关于Golang调度器的一些分析","name":"关于Golang调度器的一些分析","description":" 本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法\n本文的讨论基于golang 1.15.4版本\n","keywords":["golang","调度器"],"articleBody":" 本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法\n本文的讨论基于golang 1.15.4版本\n 1 概述 golang目前版本(1.15)使用了GMP调度模型，本文主要从实践的角度去理解golang调度器的一些原理，关于调度理论的详细解释，可以参考如下资源：\n 关于调度原理的理论讲解可以参考链接[1] golang也提供了trace工具来收集调度数据，具体使用可以参考链接[2] 对于trace信息的解释，可以参考本文的附录，也可以参考[3]  2 触发调度的时机以及处理方法 调度是为了保证cpu等物理资源得到充分的利用，那什么时候需要触发调度呢？答案一定是用户代码无法充分利用cpu等物理资源的时候才触发。通过调度这种方式，把cpu等物理资源的使用权让给其他调度单位，增加用户代码的执行效率。\n对于线程或者协程而言，阻塞会导致物理资源的占用，无法执行其他待执行的用户代码，因此阻塞是触发调度的主要原因。除此之外，为了避免饥饿(Starvation)而使用的公平调度算法也会触发调度。在golang中常见的触发调度的事件有如下几种：\n 阻塞式系统调用 非阻塞系统调用 读写channel mutex的加锁和释放锁 定时器 公平调度算法引发的调度（本文暂未分析)  下面对上述情况依次进行分析。\n2.1 阻塞式系统调用引发的调度 首先思考如果Goroutine进行了阻塞式的系统调用会发生什么？为了增加物理资源的使用率，这个时候应该触发调度，把物理资源让给其他Goroutine执行。那调度相关的逻辑处理怎么嵌入到系统调用中呢？golang的syscall包对系统调用进行了封装，在系统调用前后增加了部分调度相关的逻辑。以x86平台为例，具体实现位于**/src/syscall/asm_linux_amd64.s** 中 ， 代码如下：\n对系统调用的封装\n可以看到，golang使用了类似代理模式，在系统调用前后分别插入了如下函数：\n runtime.entersyscall() runtime.exitsyscall()  那么这两个函数做了什么呢？\n runtime.entersyscall() 实现了如下逻辑：  由于进行了系统调用，当前M（Machine）会阻塞 当前G对应的P(Processor)会与当前M(Machine）解绑 当前G对应的P(Processor)会绑定到一个其他可用M(Machine)上，继续执行P自己的任务队列中的其他G(groutines) 经过上面三步，本质上是新启动了一个内核线程继续执行P中未完成的工作，原线程阻塞等待系统调用的结束。golang通过这种方式保证了物理资源的充分利用  这部分逻辑位于/src/runtime/proc.c中：      entersyscall() 函数\n runtime.exitsyscall() 实现了如下逻辑：  当系统调用完成，G变为Runnable状态，exitsyscall()会调用mcall() 触发一个调度事件，把G放在可用的P中的任务队列中，等待执行 这部分代码位同样位于/src/runtime/proc.c中    exitsyscall() 函数\n2.1.1 验证阻塞式系统调用导致的M与P解绑 下面通过一个简单的示例来验证上面所说的理论是否正确，示例代码如下，代码功能可以参考注释：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59  package main  import (  \"fmt\"  \"net\"  \"sync\"  \"time\" )  func main() {  stopChan := make(chan struct{})  wg := sync.WaitGroup{}  wg.Add(1) \t// 2秒钟后停止 InfnityLoop  go func() {  timer := time.NewTimer(2 * time.Second)  timer.C  close(stopChan)  }()   go func() {  defer wg.Done()  sysCall(stopChan)  }()   wg.Wait() }  /** * sysCall函数首先执行一个无限循环模拟cpu占用 * 2秒后停止循环，进行一个阻塞5秒的iowait系统调用 * 系统调用完成后继续进行无限循环 */ func sysCall(stopChan chan struct{}) {  // 首先开始无限循环，模拟cpu占用  infinitLoop(stopChan)   fmt.Println(\"begin syscall\")  // 这里通过对一个不存在的地址进行tcp连接来模拟耗时的阻塞式系统调用  _, err := net.DialTimeout(\"tcp\", \"172.20.4.111:80\", 5 *time.Second)  if err != nil {  fmt.Println(err.Error())  }  fmt.Println(\"finish syscall\")   // 系统调用结束后继续循环，模拟cpu占用  ch := make(chan struct{})  infinitLoop(ch) }  func infinitLoop(stopChan chan struct{}) {  for {  select {  case stopChan:  return  default:  }  } }   执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：\n1 2  go build main.go GOMAXPROCS=2 GODEBUG=schedtrace=1000,scheddetail=1 ./main   程序执行大概10秒后按下ctrl + c 终止程序，可以得到如下输出(各个字段的具体含义可参考附录)：\n系统调用后M与P解绑\n从上图的输出中可以得到如下结论：\n 系统调用之前  代码1处可以看出P1处于运行状态(status=1) 代码2处可以看出M0正在与P1绑定，并且正在执行id为20的Goroutine   在系统调用完成之前  代码3处可以看到由于系统调用，P1已经处于idle状态 代码4处可以看到由于系统调用，M0已经空闲(p=-1, curg=-1)，不再与P1绑定 代码5处可以看到此时G处于阻塞状态(status=4), 并且阻塞的原因是IO wait     在系统调用完成之后可以看到（上图）  由于代码中的infinityLoop()函数，P0恢复为运行状态(status=1) M0重新与P0绑定，开始执行用户代码(p=0 curg=20)    总结：可以看出，阻塞式的系统调用会引起M，与P的解绑，golang正是通过这种方式保证了groutine的并发度不被系统调用给阻塞掉，以达到充分利用物理资源的目的。M与P解绑和重新绑定是通过操作系统的内核线程切换完成的，因此这种情况下调度的本质是真正的线程上下文切换。\n2.2 其他情况下的调度 2.2.1 非阻塞式系统调用引发的调度 Golang处理并发的编程范式是：将所有的外部调用都进行阻塞式的处理，通过goroutine和channel来处理阻塞调用的并发问题，这与其他语言使用future和callback是完全不同的思路。通过2.1部分可以看出，每一次阻塞式的系统调用都会新建一个内核线程并且进行线程切换，这种方案在频繁进行系统调用时候会发生什么呢？显而易见的，大量的内核线程会被创建出来，并且随着系统调用开始和结束，不断的进行线程上下文切换。这个问题在golang的http server中尤为明显，试想一下，如果golang的http server使用这种方案，是不是一夜回到解放前的BIO线程模型了？当前主流的网络框架的IO模型都使用IO多路复用模型，具体而言就是依靠epoll/kquue/IOCP等系统调用，使用Reactor模式处理网络请求，比如大名鼎鼎的Netty 网络框架。\ngolang在这方面是如何做的呢？net/http 包实现了名为netpoller 的结构体，进行了如下的工作：\n netpoller 使用epoll/kqueue/IOCP等非阻塞系统调用等待IO事件的到来 真正处理请求的goroutine阻塞在netpoller上 有IO事件到来时候netpooler就通知阻塞的goroutine开始工作  可以看出，netpooler实际上是一个非阻塞调用与阻塞调用之间的转换器，将非阻塞的系统调用成功应用在了golang使用阻塞goroutine+channel的编程范式上了。 而这种由netpooler引发的调度，实际上操作系统的内核线程是无感的，从内核线程的视角看，执行的都是连续的内核空间代码。\n还有一个问题，就是netpooler是什么时候启动的呢？\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20  runtime/proc.go:110  func main() {  ...   if GOARCH != \"wasm\" { // no threads on wasm yet, so no sysmon  systemstack(func() {  newm(sysmon, nil) // 在程序启动时候，启动sysmon m  })  }   // Lock the main goroutine onto this, the main OS thread,  // during initialization. Most programs won't care, but a few  // do require certain calls to be made by the main thread.  // Those can arrange for main.main to run in the main thread  // by calling runtime.LockOSThread during initialization  // to preserve the lock.  lockOSThread()  ... }    编译好的程序入口位于\"**runtime/proc.go**\"， 执行main()函数时候会启动sysmon, 并绑定到一个M上执行 sysmon()函数会启动netpoller  2.2.2 读取channel以及互斥锁引发的调度 对于channel和锁等待操作，同样都是在用户空间完成的。大致原理如下：\n channel拥有两个队列存储阻塞的goroutine, 这些goroutine阻塞在接收和发送数据的状态 mutex也同样有队列存储阻塞等待的goroutine 一旦阻塞条件接触，阻塞的goroutine 就变为runnable 状态，加入到某个P的任务队列中  这部分的调度同样对操作系统内核线程是透明的，内核线程认为自己只是在执行用户空间代码，完全没有线程阻塞和上下文切换。\n3 结论 通过上述讨论，可以将golang的调度主要分为以下两种：\n 阻塞式系统调用会触发真正的线程上下文切换 netpoller、读写channel、获取锁等操作引发的调度只在用户空间完成，操作系统对此是无感的，这也正是golang这门语言简单，高效的原因的之一。  4 不足 本文未探讨golang调度器提供的一些公平调度方案。\n对具体的GMP的调度算法未做深入探究。\n参考 [1] Illustrated Tales of Go Runtime Scheduler. https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b\n[2] go tool trace. https://making.pusher.com/go-tool-trace\n[3] Looking at Scheduling Tracking with GODEBUG. https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html\n[4] 也谈goroutine调度器. https://tonybai.com/2017/06/23/an-intro-about-goroutine-scheduler/\n[5] Linux 的 I/O 模型以及 Go 的网络模型实现. https://xiaoxubeii.github.io/articles/linux-io-models-and-go-network-model-2/\n[6] golang netpoller. https://yizhi.ren/2019/06/08/gonetpoller/\n附录： scheddetail 参数说明 设置了godebug=scheddetail=1 情况下，假设示例输出如下：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24  $ GODEBUG=scheddetail=1,schedtrace=1000 ./main SCHED 1000ms: gomaxprocs=4 idleprocs=0 threads=5 spinningthreads=0 idlethreads=0 runqueue=0 gcwaiting=0 nmidlelocked=0 stopwait=0 sysmonwait=0  P0: status=1 schedtick=2 syscalltick=0 m=3 runqsize=3 gfreecnt=0  P1: status=1 schedtick=2 syscalltick=0 m=4 runqsize=1 gfreecnt=0  P2: status=1 schedtick=2 syscalltick=0 m=0 runqsize=1 gfreecnt=0  P3: status=1 schedtick=1 syscalltick=0 m=2 runqsize=1 gfreecnt=0  M4: p=1 curg=18 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1  M3: p=0 curg=22 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1  M2: p=3 curg=24 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1  M1: p=-1 curg=-1 mallocing=0 throwing=0 preemptoff= locks=1 dying=0 spinning=false blocked=false lockedg=-1  M0: p=2 curg=26 mallocing=0 throwing=0 preemptoff= locks=0 dying=0 spinning=false blocked=false lockedg=-1  G1: status=4(semacquire) m=-1 lockedm=-1  G2: status=4(force gc (idle)) m=-1 lockedm=-1  G3: status=4(GC sweep wait) m=-1 lockedm=-1  G17: status=1() m=-1 lockedm=-1  G18: status=2() m=4 lockedm=-1  G19: status=1() m=-1 lockedm=-1  G20: status=1() m=-1 lockedm=-1  G21: status=1() m=-1 lockedm=-1  G22: status=2() m=3 lockedm=-1  G23: status=1() m=-1 lockedm=-1  G24: status=2() m=2 lockedm=-1  G25: status=1() m=-1 lockedm=-1  G26: status=2() m=0 lockedm=-1   G的信息如下：\n status： G的状态 m：属于哪那个M lockedm：M是否被锁定 G的状态表位于文件runtime2.go  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49  // defined constants const ( \t// G status \t// ... \t// _Gidle means this goroutine was just allocated and has not \t// yet been initialized. \t_Gidle = iota // 0 \t// _Grunnable means this goroutine is on a run queue. It is \t// not currently executing user code. The stack is not owned. \t_Grunnable // 1 \t// _Grunning means this goroutine may execute user code. The \t// stack is owned by this goroutine. It is not on a run queue. \t// It is assigned an M and a P (g.m and g.m.p are valid). \t_Grunning // 2 \t// _Gsyscall means this goroutine is executing a system call. \t// It is not executing user code. The stack is owned by this \t// goroutine. It is not on a run queue. It is assigned an M. \t_Gsyscall // 3 \t// _Gwaiting means this goroutine is blocked in the runtime. \t// It is not executing user code. It is not on a run queue, \t// but should be recorded somewhere (e.g., a channel wait \t// queue) so it can be ready()d when necessary. The stack is \t// not owned *except* that a channel operation may read or \t// write parts of the stack under the appropriate channel \t// lock. Otherwise, it is not safe to access the stack after a \t// goroutine enters _Gwaiting (e.g., it may get moved). \t_Gwaiting // 4 \t// _Gmoribund_unused is currently unused, but hardcoded in gdb \t// scripts. \t_Gmoribund_unused // 5 \t// _Gdead means this goroutine is currently unused. It may be \t// just exited, on a free list, or just being initialized. It \t// is not executing user code. It may or may not have a stack \t// allocated. The G and its stack (if any) are owned by the M \t// that is exiting the G or that obtained the G from the free \t// list. \t_Gdead // 6 \t// _Genqueue_unused is currently unused. \t_Genqueue_unused // 7 \t// _Gcopystack means this goroutine's stack is being moved. It \t// is not executing user code and is not on a run queue. The \t// stack is owned by the goroutine that put it in _Gcopystack. \t_Gcopystack // 8 \t// _Gpreempted means this goroutine stopped itself for a \t// suspendG preemption. It is like _Gwaiting, but nothing is \t// yet responsible for ready()ing it. Some suspendG must CAS \t// the status to _Gwaiting to take responsibility for \t// ready()ing this G. \t_Gpreempted // 9    G阻塞的原因如下  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31  runtime2.go  const ( waitReasonZero waitReason = iota // \"\" waitReasonGCAssistMarking // \"GC assist marking\" waitReasonIOWait // \"IO wait\" waitReasonChanReceiveNilChan // \"chan receive (nil chan)\" waitReasonChanSendNilChan // \"chan send (nil chan)\" waitReasonDumpingHeap // \"dumping heap\" waitReasonGarbageCollection // \"garbage collection\" waitReasonGarbageCollectionScan // \"garbage collection scan\" waitReasonPanicWait // \"panicwait\" waitReasonSelect // \"select\" waitReasonSelectNoCases // \"select (no cases)\" waitReasonGCAssistWait // \"GC assist wait\" waitReasonGCSweepWait // \"GC sweep wait\" waitReasonGCScavengeWait // \"GC scavenge wait\" waitReasonChanReceive // \"chan receive\" waitReasonChanSend // \"chan send\" waitReasonFinalizerWait // \"finalizer wait\" waitReasonForceGCIdle // \"force gc (idle)\" waitReasonSemacquire // \"semacquire\" waitReasonSleep // \"sleep\" waitReasonSyncCondWait // \"sync.Cond.Wait\" waitReasonTimerGoroutineIdle // \"timer goroutine (idle)\" waitReasonTraceReaderBlocked // \"trace reader (blocked)\" waitReasonWaitForGCCycle // \"wait for GC cycle\" waitReasonGCWorkerIdle // \"GC worker (idle)\" waitReasonPreempted // \"preempted\" waitReasonDebugCall // \"debug call\" )   M的信息如下：\n P: 当前与哪个P绑定 curg: 当前执行哪个G gfreecnt: 可用的 G (Gdead state). mallocing: 是否在分配内存 Throwing: 是否抛出了一场 preemptoff: 如果非空，当前执行的G不会被抢占  P的信息如下：\n status: 运行状态 Schedule tick: 调度次数 syscalltick: 系统调用的次数 M: 与哪个M进行绑定 runqsize: 运行队列的大小 gfreecnt: 可用的 G (Gdead state). P的状态表如下：  1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44  const ( \t// P status \t// _Pidle means a P is not being used to run user code or the \t// scheduler. Typically, it's on the idle P list and available \t// to the scheduler, but it may just be transitioning between \t// other states. \t// \t// The P is owned by the idle list or by whatever is \t// transitioning its state. Its run queue is empty. \t_Pidle = iota \t// _Prunning means a P is owned by an M and is being used to \t// run user code or the scheduler. Only the M that owns this P \t// is allowed to change the P's status from _Prunning. The M \t// may transition the P to _Pidle (if it has no more work to \t// do), _Psyscall (when entering a syscall), or _Pgcstop (to \t// halt for the GC). The M may also hand ownership of the P \t// off directly to another M (e.g., to schedule a locked G). \t_Prunning \t// _Psyscall means a P is not running user code. It has \t// affinity to an M in a syscall but is not owned by it and \t// may be stolen by another M. This is similar to _Pidle but \t// uses lightweight transitions and maintains M affinity. \t// \t// Leaving _Psyscall must be done with a CAS, either to steal \t// or retake the P. Note that there's an ABA hazard: even if \t// an M successfully CASes its original P back to _Prunning \t// after a syscall, it must understand the P may have been \t// used by another M in the interim. \t_Psyscall \t// _Pgcstop means a P is halted for STW and owned by the M \t// that stopped the world. The M that stopped the world \t// continues to use its P, even in _Pgcstop. Transitioning \t// from _Prunning to _Pgcstop causes an M to release its P and \t// park. \t// \t// The P retains its run queue and startTheWorld will restart \t// the scheduler on Ps with non-empty run queues. \t_Pgcstop \t// _Pdead means a P is no longer used (GOMAXPROCS shrank). We \t// reuse Ps if GOMAXPROCS increases. A dead P is mostly \t// stripped of its resources, though a few things remain \t// (e.g., trace buffers). \t_Pdead )   ","wordCount":"1686","inLanguage":"en","image":"https://tianyuxue.github.io/images/mountain.jpg","datePublished":"2020-12-26T00:00:00Z","dateModified":"2020-12-26T00:00:00Z","author":{"@type":"Person","name":"jitianyu"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://tianyuxue.github.io/posts/golang-scheduler/"},"publisher":{"@type":"Organization","name":"ACoder","logo":{"@type":"ImageObject","url":"https://tianyuxue.github.io/images/code.png"}}}</script>
+</head><body id=top>
+<script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script>
 <header class=header>
 <nav class=nav>
 <div class=logo>
@@ -59,738 +54,559 @@
 <button id=theme-toggle accesskey=t title="(Alt + T)"><svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
 </button>
 </span>
-</div>
-<ul id=menu>
+</div><ul id=menu>
 <li>
 <a href=https://tianyuxue.github.io/search/ title="搜索 (Alt + /)" accesskey=/>
 <span>搜索</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/posts/ title=文章>
 <span>文章</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/categories/ title=分类>
 <span>分类</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/tags/ title=标签>
 <span>标签</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/about/ title=关于我>
 <span><i class="fa fa-heart"></i>关于我</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/archives title=归档>
 <span>归档</span>
 </a>
-</li>
-</ul>
-</nav>
-</header>
-<main class=main>
+</li></ul></nav></header><main class=main>
 <article class=post-single>
 <header class=post-header>
-<div class=breadcrumbs><a href=https://tianyuxue.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://tianyuxue.github.io/posts/>Posts</a></div>
-<h1 class=post-title>
+<div class=breadcrumbs><a href=https://tianyuxue.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://tianyuxue.github.io/posts/>Posts</a></div><h1 class=post-title>
 关于Golang调度器的一些分析
-</h1>
-<div class=post-meta><span title="2020-12-26 00:00:00 +0000 UTC">December 26, 2020</span>&nbsp;·&nbsp;8 min&nbsp;·&nbsp;jitianyu
-</div>
-</header>
-<figure class=entry-cover><img loading=lazy src=https://tianyuxue.github.io/images/mountain.jpg alt>
-</figure>
-<div class=post-content><blockquote>
-<p>本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法</p>
-<p>本文的讨论基于golang 1.15.4版本</p>
-</blockquote>
-<h2 id=1-概述>1 概述<a hidden class=anchor aria-hidden=true href=#1-概述>#</a></h2>
-<p>golang目前版本(1.15)使用了GMP调度模型，本文主要从实践的角度去理解golang调度器的一些原理，关于调度理论的详细解释，可以参考如下资源：</p>
-<ul>
-<li>关于调度原理的理论讲解可以参考链接<a href=https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b>[1]</a></li>
-<li>golang也提供了trace工具来收集调度数据，具体使用可以参考链接<a href=https://making.pusher.com/go-tool-trace>[2]</a></li>
-<li>对于trace信息的解释，可以参考本文的附录，也可以参考<a href=https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html>[3]</a></li>
-</ul>
-<h2 id=2-触发调度的时机以及处理方法>2 触发调度的时机以及处理方法<a hidden class=anchor aria-hidden=true href=#2-触发调度的时机以及处理方法>#</a></h2>
-<p>调度是为了保证cpu等物理资源得到充分的利用，那什么时候需要触发调度呢？答案一定是用户代码无法充分利用cpu等物理资源的时候才触发。通过调度这种方式，把cpu等物理资源的使用权让给其他调度单位，增加用户代码的执行效率。</p>
-<p>对于线程或者协程而言，阻塞会导致物理资源的占用，无法执行其他待执行的用户代码，因此阻塞是触发调度的主要原因。除此之外，为了避免饥饿(Starvation)而使用的公平调度算法也会触发调度。在golang中常见的触发调度的事件有如下几种：</p>
-<ul>
-<li>阻塞式系统调用</li>
-<li>非阻塞系统调用</li>
-<li>读写channel</li>
-<li>mutex的加锁和释放锁</li>
-<li>定时器</li>
-<li>公平调度算法引发的调度（本文暂未分析)</li>
-</ul>
-<p>下面对上述情况依次进行分析。</p>
-<h2 id=21-阻塞式系统调用引发的调度>2.1 阻塞式系统调用引发的调度<a hidden class=anchor aria-hidden=true href=#21-阻塞式系统调用引发的调度>#</a></h2>
-<p>首先思考如果Goroutine进行了阻塞式的系统调用会发生什么？为了增加物理资源的使用率，这个时候应该触发调度，把物理资源让给其他Goroutine执行。那调度相关的逻辑处理怎么嵌入到系统调用中呢？golang的<code>syscall</code>包对系统调用进行了封装，在系统调用前后增加了部分调度相关的逻辑。以x86平台为例，具体实现位于<code>**/src/syscall/asm_linux_amd64.s**</code> 中 ， 代码如下：</p>
-<p><img loading=lazy src=images/image-20201224140711356-1.png alt>
-</p>
-<p>对系统调用的封装</p>
-<p>可以看到，golang使用了类似代理模式，在系统调用前后分别插入了如下函数：</p>
-<ul>
-<li><code>runtime.entersyscall()</code></li>
-<li><code>runtime.exitsyscall()</code></li>
-</ul>
-<p>那么这两个函数做了什么呢？</p>
-<ul>
+</h1><div class=post-meta><span title="2020-12-26 00:00:00 +0000 UTC">December 26, 2020</span>&nbsp;·&nbsp;8 min&nbsp;·&nbsp;jitianyu
+</div></header><figure class=entry-cover><img loading=lazy src=https://tianyuxue.github.io/images/mountain.jpg alt>
+</figure><div class=post-content><blockquote>
+<p>本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法</p><p>本文的讨论基于golang 1.15.4版本</p></blockquote><h2 id=1-概述>1 概述<a hidden class=anchor aria-hidden=true href=#1-概述>#</a></h2><p>golang目前版本(1.15)使用了GMP调度模型，本文主要从实践的角度去理解golang调度器的一些原理，关于调度理论的详细解释，可以参考如下资源：</p><ul>
+<li>关于调度原理的理论讲解可以参考链接<a href=https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b>[1]</a></li><li>golang也提供了trace工具来收集调度数据，具体使用可以参考链接<a href=https://making.pusher.com/go-tool-trace>[2]</a></li><li>对于trace信息的解释，可以参考本文的附录，也可以参考<a href=https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html>[3]</a></li></ul><h2 id=2-触发调度的时机以及处理方法>2 触发调度的时机以及处理方法<a hidden class=anchor aria-hidden=true href=#2-触发调度的时机以及处理方法>#</a></h2><p>调度是为了保证cpu等物理资源得到充分的利用，那什么时候需要触发调度呢？答案一定是用户代码无法充分利用cpu等物理资源的时候才触发。通过调度这种方式，把cpu等物理资源的使用权让给其他调度单位，增加用户代码的执行效率。</p><p>对于线程或者协程而言，阻塞会导致物理资源的占用，无法执行其他待执行的用户代码，因此阻塞是触发调度的主要原因。除此之外，为了避免饥饿(Starvation)而使用的公平调度算法也会触发调度。在golang中常见的触发调度的事件有如下几种：</p><ul>
+<li>阻塞式系统调用</li><li>非阻塞系统调用</li><li>读写channel</li><li>mutex的加锁和释放锁</li><li>定时器</li><li>公平调度算法引发的调度（本文暂未分析)</li></ul><p>下面对上述情况依次进行分析。</p><h2 id=21-阻塞式系统调用引发的调度>2.1 阻塞式系统调用引发的调度<a hidden class=anchor aria-hidden=true href=#21-阻塞式系统调用引发的调度>#</a></h2><p>首先思考如果Goroutine进行了阻塞式的系统调用会发生什么？为了增加物理资源的使用率，这个时候应该触发调度，把物理资源让给其他Goroutine执行。那调度相关的逻辑处理怎么嵌入到系统调用中呢？golang的<code>syscall</code>包对系统调用进行了封装，在系统调用前后增加了部分调度相关的逻辑。以x86平台为例，具体实现位于<code>**/src/syscall/asm_linux_amd64.s**</code> 中 ， 代码如下：</p><p><img loading=lazy src=images/image-20201224140711356-1.png alt>
+</p><p>对系统调用的封装</p><p>可以看到，golang使用了类似代理模式，在系统调用前后分别插入了如下函数：</p><ul>
+<li><code>runtime.entersyscall()</code></li><li><code>runtime.exitsyscall()</code></li></ul><p>那么这两个函数做了什么呢？</p><ul>
 <li><code>runtime.entersyscall()</code> 实现了如下逻辑：
 <ol>
-<li>由于进行了系统调用，当前M（Machine）会阻塞</li>
-<li>当前G对应的P(Processor)会与当前M(Machine）解绑</li>
-<li>当前G对应的P(Processor)会绑定到一个其他可用M(Machine)上，继续执行P自己的任务队列中的其他G(groutines)</li>
-<li>经过上面三步，本质上是<strong>新启动了一个内核线程继续执行P中未完成的工作，原线程阻塞等待系统调用的结束</strong>。golang通过这种方式保证了物理资源的充分利用
+<li>由于进行了系统调用，当前M（Machine）会阻塞</li><li>当前G对应的P(Processor)会与当前M(Machine）解绑</li><li>当前G对应的P(Processor)会绑定到一个其他可用M(Machine)上，继续执行P自己的任务队列中的其他G(groutines)</li><li>经过上面三步，本质上是<strong>新启动了一个内核线程继续执行P中未完成的工作，原线程阻塞等待系统调用的结束</strong>。golang通过这种方式保证了物理资源的充分利用
 <ul>
-<li>这部分逻辑位于<code>/src/runtime/proc.c</code>中：</li>
-</ul>
-</li>
-</ol>
-</li>
-</ul>
-<p><img loading=lazy src=images/image-20201224141715303.png alt>
-</p>
-<p>entersyscall() 函数</p>
-<ul>
+<li>这部分逻辑位于<code>/src/runtime/proc.c</code>中：</li></ul></li></ol></li></ul><p><img loading=lazy src=images/image-20201224141715303.png alt>
+</p><p>entersyscall() 函数</p><ul>
 <li><code>runtime.exitsyscall()</code> 实现了如下逻辑：
 <ul>
-<li>当系统调用完成，G变为Runnable状态，<code>exitsyscall()</code>会调用<code>mcall()</code> 触发一个调度事件，把G放在可用的P中的任务队列中，等待执行</li>
-<li>这部分代码位同样位于<code>/src/runtime/proc.c</code>中</li>
-</ul>
-</li>
-</ul>
-<p><img loading=lazy src=images/image-20201224143553971.png alt>
-</p>
-<p>exitsyscall() 函数</p>
-<h3 id=211-验证阻塞式系统调用导致的m与p解绑>2.1.1 验证阻塞式系统调用导致的M与P解绑<a hidden class=anchor aria-hidden=true href=#211-验证阻塞式系统调用导致的m与p解绑>#</a></h3>
-<p>下面通过一个简单的示例来验证上面所说的理论是否正确，示例代码如下，代码功能可以参考注释：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">50
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">51
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">52
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">53
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">54
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">55
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">56
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">57
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">58
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">59
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
-
-<span style=color:#f92672>import</span> (
-    <span style=color:#e6db74>&#34;fmt&#34;</span>
-    <span style=color:#e6db74>&#34;net&#34;</span>
-    <span style=color:#e6db74>&#34;sync&#34;</span>
-    <span style=color:#e6db74>&#34;time&#34;</span>
-)
-
-<span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
-    <span style=color:#a6e22e>stopChan</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{})
-    <span style=color:#a6e22e>wg</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>WaitGroup</span>{}
-    <span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Add</span>(<span style=color:#ae81ff>1</span>)
-	<span style=color:#75715e>// 2秒钟后停止 InfnityLoop
-</span><span style=color:#75715e></span>    <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
-        <span style=color:#a6e22e>timer</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>NewTimer</span>(<span style=color:#ae81ff>2</span> <span style=color:#f92672>*</span> <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
-        <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>timer</span>.<span style=color:#a6e22e>C</span>
-        close(<span style=color:#a6e22e>stopChan</span>)
-    }() 
-
-    <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
-        <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Done</span>()
-        <span style=color:#a6e22e>sysCall</span>(<span style=color:#a6e22e>stopChan</span>)
-    }() 
-
-    <span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Wait</span>()
-}
-
-<span style=color:#75715e>/**
-</span><span style=color:#75715e> *  sysCall函数首先执行一个无限循环模拟cpu占用
-</span><span style=color:#75715e> *  2秒后停止循环，进行一个阻塞5秒的iowait系统调用
-</span><span style=color:#75715e> *  系统调用完成后继续进行无限循环
-</span><span style=color:#75715e> */</span>
-<span style=color:#66d9ef>func</span> <span style=color:#a6e22e>sysCall</span>(<span style=color:#a6e22e>stopChan</span> <span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{}) {
-    <span style=color:#75715e>// 首先开始无限循环，模拟cpu占用
-</span><span style=color:#75715e></span>    <span style=color:#a6e22e>infinitLoop</span>(<span style=color:#a6e22e>stopChan</span>)
-
-    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;begin syscall&#34;</span>)
-    <span style=color:#75715e>// 这里通过对一个不存在的地址进行tcp连接来模拟耗时的阻塞式系统调用
-</span><span style=color:#75715e></span>    <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>net</span>.<span style=color:#a6e22e>DialTimeout</span>(<span style=color:#e6db74>&#34;tcp&#34;</span>, <span style=color:#e6db74>&#34;172.20.4.111:80&#34;</span>, <span style=color:#ae81ff>5</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
-    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-        <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>err</span>.<span style=color:#a6e22e>Error</span>())
-    }   
-    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;finish syscall&#34;</span>)
-
-    <span style=color:#75715e>// 系统调用结束后继续循环，模拟cpu占用
-</span><span style=color:#75715e></span>    <span style=color:#a6e22e>ch</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{})
-    <span style=color:#a6e22e>infinitLoop</span>(<span style=color:#a6e22e>ch</span>)
-}
-
-<span style=color:#66d9ef>func</span> <span style=color:#a6e22e>infinitLoop</span>(<span style=color:#a6e22e>stopChan</span> <span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{}) {
-    <span style=color:#66d9ef>for</span> {
-        <span style=color:#66d9ef>select</span> {
-        <span style=color:#66d9ef>case</span> <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>stopChan</span>:
-            <span style=color:#66d9ef>return</span>
-        <span style=color:#66d9ef>default</span>:
-        }   
-    }   
-}
-</code></pre></td></tr></table>
-</div>
-</div><p>执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>go build main.go
-GOMAXPROCS<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> GODEBUG<span style=color:#f92672>=</span>schedtrace<span style=color:#f92672>=</span>1000,scheddetail<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> ./main
-</code></pre></td></tr></table>
-</div>
-</div><p>程序执行大概10秒后按下<code>ctrl + c</code> 终止程序，可以得到如下输出(各个字段的具体含义可参考附录)：</p>
-<p><img loading=lazy src=images/image-20201224151118546.png alt>
-</p>
-<p>系统调用后M与P解绑</p>
-<p>从上图的输出中可以得到如下结论：</p>
-<ul>
+<li>当系统调用完成，G变为Runnable状态，<code>exitsyscall()</code>会调用<code>mcall()</code> 触发一个调度事件，把G放在可用的P中的任务队列中，等待执行</li><li>这部分代码位同样位于<code>/src/runtime/proc.c</code>中</li></ul></li></ul><p><img loading=lazy src=images/image-20201224143553971.png alt>
+</p><p>exitsyscall() 函数</p><h3 id=211-验证阻塞式系统调用导致的m与p解绑>2.1.1 验证阻塞式系统调用导致的M与P解绑<a hidden class=anchor aria-hidden=true href=#211-验证阻塞式系统调用导致的m与p解绑>#</a></h3><p>下面通过一个简单的示例来验证上面所说的理论是否正确，示例代码如下，代码功能可以参考注释：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">50
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">51
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">52
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">53
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">54
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">55
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">56
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">57
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">58
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">59
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#f92672>package</span> <span style=color:#a6e22e>main</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>import</span> (
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;fmt&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;net&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;sync&#34;</span>
+</span></span><span style=display:flex><span>    <span style=color:#e6db74>&#34;time&#34;</span>
+</span></span><span style=display:flex><span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>stopChan</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{})
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>wg</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>WaitGroup</span>{}
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Add</span>(<span style=color:#ae81ff>1</span>)
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// 2秒钟后停止 InfnityLoop
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>timer</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>NewTimer</span>(<span style=color:#ae81ff>2</span> <span style=color:#f92672>*</span> <span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
+</span></span><span style=display:flex><span>        <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>timer</span>.<span style=color:#a6e22e>C</span>
+</span></span><span style=display:flex><span>        close(<span style=color:#a6e22e>stopChan</span>)
+</span></span><span style=display:flex><span>    }() 
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>go</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Done</span>()
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>sysCall</span>(<span style=color:#a6e22e>stopChan</span>)
+</span></span><span style=display:flex><span>    }() 
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Wait</span>()
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>/**
+</span></span></span><span style=display:flex><span><span style=color:#75715e> *  sysCall函数首先执行一个无限循环模拟cpu占用
+</span></span></span><span style=display:flex><span><span style=color:#75715e> *  2秒后停止循环，进行一个阻塞5秒的iowait系统调用
+</span></span></span><span style=display:flex><span><span style=color:#75715e> *  系统调用完成后继续进行无限循环
+</span></span></span><span style=display:flex><span><span style=color:#75715e> */</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>sysCall</span>(<span style=color:#a6e22e>stopChan</span> <span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{}) {
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 首先开始无限循环，模拟cpu占用
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>infinitLoop</span>(<span style=color:#a6e22e>stopChan</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;begin syscall&#34;</span>)
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 这里通过对一个不存在的地址进行tcp连接来模拟耗时的阻塞式系统调用
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>net</span>.<span style=color:#a6e22e>DialTimeout</span>(<span style=color:#e6db74>&#34;tcp&#34;</span>, <span style=color:#e6db74>&#34;172.20.4.111:80&#34;</span>, <span style=color:#ae81ff>5</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>time</span>.<span style=color:#a6e22e>Second</span>)
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>        <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#a6e22e>err</span>.<span style=color:#a6e22e>Error</span>())
+</span></span><span style=display:flex><span>    }   
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>fmt</span>.<span style=color:#a6e22e>Println</span>(<span style=color:#e6db74>&#34;finish syscall&#34;</span>)
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 系统调用结束后继续循环，模拟cpu占用
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>ch</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{})
+</span></span><span style=display:flex><span>    <span style=color:#a6e22e>infinitLoop</span>(<span style=color:#a6e22e>ch</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>infinitLoop</span>(<span style=color:#a6e22e>stopChan</span> <span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>struct</span>{}) {
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>for</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>select</span> {
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>case</span> <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>stopChan</span>:
+</span></span><span style=display:flex><span>            <span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>        <span style=color:#66d9ef>default</span>:
+</span></span><span style=display:flex><span>        }   
+</span></span><span style=display:flex><span>    }   
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><p>执行如下命令编译、运行代码， 指定系统使用2个P（Processor）, 每秒输出一次调度信息：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell><span style=display:flex><span>go build main.go
+</span></span><span style=display:flex><span>GOMAXPROCS<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> GODEBUG<span style=color:#f92672>=</span>schedtrace<span style=color:#f92672>=</span>1000,scheddetail<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> ./main
+</span></span></code></pre></td></tr></table></div></div><p>程序执行大概10秒后按下<code>ctrl + c</code> 终止程序，可以得到如下输出(各个字段的具体含义可参考附录)：</p><p><img loading=lazy src=images/image-20201224151118546.png alt>
+</p><p>系统调用后M与P解绑</p><p>从上图的输出中可以得到如下结论：</p><ul>
 <li>系统调用之前
 <ul>
-<li>代码1处可以看出P1处于运行状态(status=1)</li>
-<li>代码2处可以看出M0正在与P1绑定，并且正在执行id为20的Goroutine</li>
-</ul>
-</li>
-<li>在系统调用完成之前
+<li>代码1处可以看出P1处于运行状态(status=1)</li><li>代码2处可以看出M0正在与P1绑定，并且正在执行id为20的Goroutine</li></ul></li><li>在系统调用完成之前
 <ul>
-<li>代码3处可以看到由于系统调用，P1已经处于idle状态</li>
-<li>代码4处可以看到由于系统调用，M0已经空闲(p=-1, curg=-1)，不再与P1绑定</li>
-<li>代码5处可以看到此时G处于阻塞状态(status=4), 并且阻塞的原因是IO wait</li>
-</ul>
-</li>
-</ul>
-<p><img loading=lazy src=images/image-20201224152456128.png alt>
-</p>
-<ul>
+<li>代码3处可以看到由于系统调用，P1已经处于idle状态</li><li>代码4处可以看到由于系统调用，M0已经空闲(p=-1, curg=-1)，不再与P1绑定</li><li>代码5处可以看到此时G处于阻塞状态(status=4), 并且阻塞的原因是IO wait</li></ul></li></ul><p><img loading=lazy src=images/image-20201224152456128.png alt>
+</p><ul>
 <li>在系统调用完成之后可以看到（上图）
 <ul>
-<li>由于代码中的<code>infinityLoop()</code>函数，P0恢复为运行状态(status=1)</li>
-<li>M0重新与P0绑定，开始执行用户代码(p=0 curg=20)</li>
-</ul>
-</li>
-</ul>
-<p>总结：可以看出，阻塞式的系统调用会引起M，与P的解绑，golang正是通过这种方式保证了groutine的并发度不被系统调用给阻塞掉，以达到充分利用物理资源的目的。<strong>M与P解绑和重新绑定是通过操作系统的内核线程切换完成的，因此这种情况下调度的本质是真正的线程上下文切换。</strong></p>
-<h2 id=22-其他情况下的调度>2.2 其他情况下的调度<a hidden class=anchor aria-hidden=true href=#22-其他情况下的调度>#</a></h2>
-<h3 id=221-非阻塞式系统调用引发的调度>2.2.1 非阻塞式系统调用引发的调度<a hidden class=anchor aria-hidden=true href=#221-非阻塞式系统调用引发的调度>#</a></h3>
-<p>Golang处理并发的编程范式是：<strong>将所有的外部调用都进行阻塞式的处理，通过goroutine和channel来处理阻塞调用的并发问题</strong>，这与其他语言使用future和callback是完全不同的思路。通过2.1部分可以看出，每一次阻塞式的系统调用都会新建一个内核线程并且进行线程切换，这种方案在频繁进行系统调用时候会发生什么呢？显而易见的，大量的内核线程会被创建出来，并且随着系统调用开始和结束，不断的进行线程上下文切换。这个问题在golang的http server中尤为明显，试想一下，如果golang的http server使用这种方案，是不是一夜回到解放前的BIO线程模型了？当前主流的网络框架的IO模型都使用IO多路复用模型，具体而言就是依靠<code>epoll/kquue/IOCP</code>等系统调用，使用Reactor模式处理网络请求，比如大名鼎鼎的<code>Netty</code> 网络框架。</p>
-<p>golang在这方面是如何做的呢？<code>net/http</code> 包实现了名为<code>netpoller</code> 的结构体，进行了如下的工作：</p>
-<ul>
-<li><code>netpoller</code> 使用<code>epoll/kqueue/IOCP</code>等非阻塞系统调用等待IO事件的到来</li>
-<li>真正处理请求的goroutine阻塞在netpoller上</li>
-<li>有IO事件到来时候<code>netpooler</code>就通知阻塞的goroutine开始工作</li>
-</ul>
-<p>可以看出，<code>netpooler</code>实际上是一个非阻塞调用与阻塞调用之间的转换器，将非阻塞的系统调用成功应用在了<strong>golang使用阻塞goroutine+channel的编程范式上了。</strong> 而这种由netpooler引发的调度，实际上<strong>操作系统的内核线程是无感的，从内核线程的视角看，执行的都是连续的内核空间代码。</strong></p>
-<p>还有一个问题，就是netpooler是什么时候启动的呢？</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#a6e22e>runtime</span><span style=color:#f92672>/</span><span style=color:#a6e22e>proc</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>110</span>
-
-<span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
-    <span style=color:#f92672>...</span>
-
-    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>GOARCH</span> <span style=color:#f92672>!=</span> <span style=color:#e6db74>&#34;wasm&#34;</span> { <span style=color:#75715e>// no threads on wasm yet, so no sysmon
-</span><span style=color:#75715e></span>        <span style=color:#a6e22e>systemstack</span>(<span style=color:#66d9ef>func</span>() {
-            <span style=color:#a6e22e>newm</span>(<span style=color:#a6e22e>sysmon</span>, <span style=color:#66d9ef>nil</span>) <span style=color:#75715e>// 在程序启动时候，启动sysmon m
-</span><span style=color:#75715e></span>        })
-    }
-
-    <span style=color:#75715e>// Lock the main goroutine onto this, the main OS thread,
-</span><span style=color:#75715e></span>    <span style=color:#75715e>// during initialization. Most programs won&#39;t care, but a few
-</span><span style=color:#75715e></span>    <span style=color:#75715e>// do require certain calls to be made by the main thread.
-</span><span style=color:#75715e></span>    <span style=color:#75715e>// Those can arrange for main.main to run in the main thread
-</span><span style=color:#75715e></span>    <span style=color:#75715e>// by calling runtime.LockOSThread during initialization
-</span><span style=color:#75715e></span>    <span style=color:#75715e>// to preserve the lock.
-</span><span style=color:#75715e></span>    <span style=color:#a6e22e>lockOSThread</span>()
-    <span style=color:#f92672>...</span>
-}
-</code></pre></td></tr></table>
-</div>
-</div><ul>
-<li>编译好的程序入口位于"<code>**runtime/proc.go**"</code>， 执行<code>main()</code>函数时候会启动<code>sysmon</code>, 并绑定到一个M上执行</li>
-<li><code>sysmon()</code>函数会启动<code>netpoller</code></li>
-</ul>
-<h3 id=222-读取channel以及互斥锁引发的调度>2.2.2 读取channel以及互斥锁引发的调度<a hidden class=anchor aria-hidden=true href=#222-读取channel以及互斥锁引发的调度>#</a></h3>
-<p>对于channel和锁等待操作，同样都是在用户空间完成的。大致原理如下：</p>
-<ul>
-<li>channel拥有两个队列存储阻塞的goroutine, 这些goroutine阻塞在接收和发送数据的状态</li>
-<li><code>mutex</code>也同样有队列存储阻塞等待的goroutine</li>
-<li>一旦阻塞条件接触，阻塞的<code>goroutine</code> 就变为<code>runnable</code> 状态，加入到某个P的任务队列中</li>
-</ul>
-<p>这部分的调度同样对操作系统内核线程是透明的，内核线程认为自己只是在执行用户空间代码，完全没有线程阻塞和上下文切换。</p>
-<h2 id=3-结论>3 结论<a hidden class=anchor aria-hidden=true href=#3-结论>#</a></h2>
-<p>通过上述讨论，可以将golang的调度主要分为以下两种：</p>
-<ul>
-<li>阻塞式系统调用会触发真正的线程上下文切换</li>
-<li>netpoller、读写channel、获取锁等操作引发的调度只在用户空间完成，操作系统对此是无感的，这也正是golang这门语言简单，高效的原因的之一。</li>
-</ul>
-<h2 id=4-不足>4 不足<a hidden class=anchor aria-hidden=true href=#4-不足>#</a></h2>
-<p>本文未探讨golang调度器提供的一些公平调度方案。</p>
-<p>对具体的GMP的调度算法未做深入探究。</p>
-<h1 id=参考>参考<a hidden class=anchor aria-hidden=true href=#参考>#</a></h1>
-<p>[1] Illustrated Tales of Go Runtime Scheduler. <a href=https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b>https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b</a></p>
-<p>[2] go tool trace. <a href=https://making.pusher.com/go-tool-trace>https://making.pusher.com/go-tool-trace</a></p>
-<p>[3] Looking at Scheduling Tracking with GODEBUG. <a href=https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html>https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html</a></p>
-<p>[4] 也谈goroutine调度器. <a href=https://tonybai.com/2017/06/23/an-intro-about-goroutine-scheduler/>https://tonybai.com/2017/06/23/an-intro-about-goroutine-scheduler/</a></p>
-<p>[5] Linux 的 I/O 模型以及 Go 的网络模型实现. <a href=https://xiaoxubeii.github.io/articles/linux-io-models-and-go-network-model-2/>https://xiaoxubeii.github.io/articles/linux-io-models-and-go-network-model-2/</a></p>
-<p>[6] golang netpoller. <a href=https://yizhi.ren/2019/06/08/gonetpoller/>https://yizhi.ren/2019/06/08/gonetpoller/</a></p>
-<h2 id=附录>附录：<a hidden class=anchor aria-hidden=true href=#附录>#</a></h2>
-<h3 id=scheddetail-参数说明>scheddetail 参数说明<a hidden class=anchor aria-hidden=true href=#scheddetail-参数说明>#</a></h3>
-<p>设置了<code>godebug=scheddetail=1</code> 情况下，假设示例输出如下：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>$ GODEBUG<span style=color:#f92672>=</span>scheddetail<span style=color:#f92672>=</span>1,schedtrace<span style=color:#f92672>=</span><span style=color:#ae81ff>1000</span> ./main
-SCHED 1000ms: gomaxprocs<span style=color:#f92672>=</span><span style=color:#ae81ff>4</span> idleprocs<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> threads<span style=color:#f92672>=</span><span style=color:#ae81ff>5</span> spinningthreads<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> idlethreads<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> runqueue<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> gcwaiting<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> nmidlelocked<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> stopwait<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> sysmonwait<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
-  P0: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
-  P1: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>4</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
-  P2: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
-  P3: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
-  M4: p<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>18</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
-  M3: p<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>22</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
-  M2: p<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>24</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
-  M1: p<span style=color:#f92672>=</span>-1 curg<span style=color:#f92672>=</span>-1 mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
-  M0: p<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>26</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
-  G1: status<span style=color:#f92672>=</span>4<span style=color:#f92672>(</span>semacquire<span style=color:#f92672>)</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G2: status<span style=color:#f92672>=</span>4<span style=color:#f92672>(</span>force gc <span style=color:#f92672>(</span>idle<span style=color:#f92672>))</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G3: status<span style=color:#f92672>=</span>4<span style=color:#f92672>(</span>GC sweep wait<span style=color:#f92672>)</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G17: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G18: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>4</span> lockedm<span style=color:#f92672>=</span>-1
-  G19: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G20: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G21: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G22: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> lockedm<span style=color:#f92672>=</span>-1
-  G23: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G24: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> lockedm<span style=color:#f92672>=</span>-1
-  G25: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
-  G26: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> lockedm<span style=color:#f92672>=</span>-1
-</code></pre></td></tr></table>
-</div>
-</div><p>G的信息如下：</p>
-<ul>
-<li>status： G的状态</li>
-<li>m：属于哪那个M</li>
-<li>lockedm：M是否被锁定</li>
-<li>G的状态表位于文件<code>runtime2.go</code></li>
-</ul>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#75715e>// defined constants
-</span><span style=color:#75715e></span><span style=color:#66d9ef>const</span> (
-	<span style=color:#75715e>// G status
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// ...
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gidle means this goroutine was just allocated and has not
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// yet been initialized.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gidle</span> = <span style=color:#66d9ef>iota</span> <span style=color:#75715e>// 0
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Grunnable means this goroutine is on a run queue. It is
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// not currently executing user code. The stack is not owned.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Grunnable</span> <span style=color:#75715e>// 1
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Grunning means this goroutine may execute user code. The
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// stack is owned by this goroutine. It is not on a run queue.
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// It is assigned an M and a P (g.m and g.m.p are valid).
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Grunning</span> <span style=color:#75715e>// 2
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gsyscall means this goroutine is executing a system call.
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// It is not executing user code. The stack is owned by this
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// goroutine. It is not on a run queue. It is assigned an M.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gsyscall</span> <span style=color:#75715e>// 3
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gwaiting means this goroutine is blocked in the runtime.
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// It is not executing user code. It is not on a run queue,
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// but should be recorded somewhere (e.g., a channel wait
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// queue) so it can be ready()d when necessary. The stack is
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// not owned *except* that a channel operation may read or
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// write parts of the stack under the appropriate channel
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// lock. Otherwise, it is not safe to access the stack after a
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// goroutine enters _Gwaiting (e.g., it may get moved).
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gwaiting</span> <span style=color:#75715e>// 4
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gmoribund_unused is currently unused, but hardcoded in gdb
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// scripts.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gmoribund_unused</span> <span style=color:#75715e>// 5
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gdead means this goroutine is currently unused. It may be
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// just exited, on a free list, or just being initialized. It
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// is not executing user code. It may or may not have a stack
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// allocated. The G and its stack (if any) are owned by the M
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// that is exiting the G or that obtained the G from the free
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// list.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gdead</span> <span style=color:#75715e>// 6
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Genqueue_unused is currently unused.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Genqueue_unused</span> <span style=color:#75715e>// 7
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gcopystack means this goroutine&#39;s stack is being moved. It
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// is not executing user code and is not on a run queue. The
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// stack is owned by the goroutine that put it in _Gcopystack.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gcopystack</span> <span style=color:#75715e>// 8
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gpreempted means this goroutine stopped itself for a
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// suspendG preemption. It is like _Gwaiting, but nothing is
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// yet responsible for ready()ing it. Some suspendG must CAS
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// the status to _Gwaiting to take responsibility for
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// ready()ing this G.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gpreempted</span> <span style=color:#75715e>// 9
-</span></code></pre></td></tr></table>
-</div>
-</div><ul>
-<li>G阻塞的原因如下</li>
-</ul>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#a6e22e>runtime2</span>.<span style=color:#66d9ef>go</span>
-
-<span style=color:#66d9ef>const</span> (
-<span style=color:#a6e22e>waitReasonZero</span>                  <span style=color:#a6e22e>waitReason</span> = <span style=color:#66d9ef>iota</span> <span style=color:#75715e>// &#34;&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCAssistMarking</span>                         <span style=color:#75715e>// &#34;GC assist marking&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonIOWait</span>                                  <span style=color:#75715e>// &#34;IO wait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanReceiveNilChan</span>                      <span style=color:#75715e>// &#34;chan receive (nil chan)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanSendNilChan</span>                         <span style=color:#75715e>// &#34;chan send (nil chan)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonDumpingHeap</span>                             <span style=color:#75715e>// &#34;dumping heap&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGarbageCollection</span>                       <span style=color:#75715e>// &#34;garbage collection&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGarbageCollectionScan</span>                   <span style=color:#75715e>// &#34;garbage collection scan&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonPanicWait</span>                               <span style=color:#75715e>// &#34;panicwait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSelect</span>                                  <span style=color:#75715e>// &#34;select&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSelectNoCases</span>                           <span style=color:#75715e>// &#34;select (no cases)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCAssistWait</span>                            <span style=color:#75715e>// &#34;GC assist wait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCSweepWait</span>                             <span style=color:#75715e>// &#34;GC sweep wait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCScavengeWait</span>                          <span style=color:#75715e>// &#34;GC scavenge wait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanReceive</span>                             <span style=color:#75715e>// &#34;chan receive&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanSend</span>                                <span style=color:#75715e>// &#34;chan send&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonFinalizerWait</span>                           <span style=color:#75715e>// &#34;finalizer wait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonForceGCIdle</span>                             <span style=color:#75715e>// &#34;force gc (idle)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSemacquire</span>                              <span style=color:#75715e>// &#34;semacquire&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSleep</span>                                   <span style=color:#75715e>// &#34;sleep&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSyncCondWait</span>                            <span style=color:#75715e>// &#34;sync.Cond.Wait&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonTimerGoroutineIdle</span>                      <span style=color:#75715e>// &#34;timer goroutine (idle)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonTraceReaderBlocked</span>                      <span style=color:#75715e>// &#34;trace reader (blocked)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonWaitForGCCycle</span>                          <span style=color:#75715e>// &#34;wait for GC cycle&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCWorkerIdle</span>                            <span style=color:#75715e>// &#34;GC worker (idle)&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonPreempted</span>                               <span style=color:#75715e>// &#34;preempted&#34;
-</span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonDebugCall</span>                               <span style=color:#75715e>// &#34;debug call&#34;
-</span><span style=color:#75715e></span>)
-</code></pre></td></tr></table>
-</div>
-</div><p>M的信息如下：</p>
-<ul>
-<li>P: 当前与哪个P绑定</li>
-<li>curg: 当前执行哪个G</li>
-<li>gfreecnt: 可用的 G (Gdead state).</li>
-<li>mallocing: 是否在分配内存</li>
-<li>Throwing: 是否抛出了一场</li>
-<li>preemptoff: 如果非空，当前执行的G不会被抢占</li>
-</ul>
-<p>P的信息如下：</p>
-<ul>
-<li>status: 运行状态</li>
-<li>Schedule tick: 调度次数</li>
-<li>syscalltick: 系统调用的次数</li>
-<li>M: 与哪个M进行绑定</li>
-<li>runqsize: 运行队列的大小</li>
-<li>gfreecnt: 可用的 G (Gdead state).</li>
-<li>P的状态表如下：</li>
-</ul>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#66d9ef>const</span> (
-	<span style=color:#75715e>// P status
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// _Pidle means a P is not being used to run user code or the
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// scheduler. Typically, it&#39;s on the idle P list and available
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// to the scheduler, but it may just be transitioning between
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// other states.
-</span><span style=color:#75715e></span>	<span style=color:#75715e>//
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// The P is owned by the idle list or by whatever is
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// transitioning its state. Its run queue is empty.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Pidle</span> = <span style=color:#66d9ef>iota</span>
-	<span style=color:#75715e>// _Prunning means a P is owned by an M and is being used to
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// run user code or the scheduler. Only the M that owns this P
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// is allowed to change the P&#39;s status from _Prunning. The M
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// may transition the P to _Pidle (if it has no more work to
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// do), _Psyscall (when entering a syscall), or _Pgcstop (to
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// halt for the GC). The M may also hand ownership of the P
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// off directly to another M (e.g., to schedule a locked G).
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Prunning</span>
-	<span style=color:#75715e>// _Psyscall means a P is not running user code. It has
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// affinity to an M in a syscall but is not owned by it and
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// may be stolen by another M. This is similar to _Pidle but
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// uses lightweight transitions and maintains M affinity.
-</span><span style=color:#75715e></span>	<span style=color:#75715e>//
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// Leaving _Psyscall must be done with a CAS, either to steal
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// or retake the P. Note that there&#39;s an ABA hazard: even if
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// an M successfully CASes its original P back to _Prunning
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// after a syscall, it must understand the P may have been
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// used by another M in the interim.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Psyscall</span>
-	<span style=color:#75715e>// _Pgcstop means a P is halted for STW and owned by the M
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// that stopped the world. The M that stopped the world
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// continues to use its P, even in _Pgcstop. Transitioning
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// from _Prunning to _Pgcstop causes an M to release its P and
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// park.
-</span><span style=color:#75715e></span>	<span style=color:#75715e>//
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// The P retains its run queue and startTheWorld will restart
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// the scheduler on Ps with non-empty run queues.
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Pgcstop</span>
-	<span style=color:#75715e>// _Pdead means a P is no longer used (GOMAXPROCS shrank). We
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// reuse Ps if GOMAXPROCS increases. A dead P is mostly
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// stripped of its resources, though a few things remain
-</span><span style=color:#75715e></span>	<span style=color:#75715e>// (e.g., trace buffers).
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Pdead</span>
-)
-</code></pre></td></tr></table>
-</div>
-</div>
-</div>
-<footer class=post-footer>
+<li>由于代码中的<code>infinityLoop()</code>函数，P0恢复为运行状态(status=1)</li><li>M0重新与P0绑定，开始执行用户代码(p=0 curg=20)</li></ul></li></ul><p>总结：可以看出，阻塞式的系统调用会引起M，与P的解绑，golang正是通过这种方式保证了groutine的并发度不被系统调用给阻塞掉，以达到充分利用物理资源的目的。<strong>M与P解绑和重新绑定是通过操作系统的内核线程切换完成的，因此这种情况下调度的本质是真正的线程上下文切换。</strong></p><h2 id=22-其他情况下的调度>2.2 其他情况下的调度<a hidden class=anchor aria-hidden=true href=#22-其他情况下的调度>#</a></h2><h3 id=221-非阻塞式系统调用引发的调度>2.2.1 非阻塞式系统调用引发的调度<a hidden class=anchor aria-hidden=true href=#221-非阻塞式系统调用引发的调度>#</a></h3><p>Golang处理并发的编程范式是：<strong>将所有的外部调用都进行阻塞式的处理，通过goroutine和channel来处理阻塞调用的并发问题</strong>，这与其他语言使用future和callback是完全不同的思路。通过2.1部分可以看出，每一次阻塞式的系统调用都会新建一个内核线程并且进行线程切换，这种方案在频繁进行系统调用时候会发生什么呢？显而易见的，大量的内核线程会被创建出来，并且随着系统调用开始和结束，不断的进行线程上下文切换。这个问题在golang的http server中尤为明显，试想一下，如果golang的http server使用这种方案，是不是一夜回到解放前的BIO线程模型了？当前主流的网络框架的IO模型都使用IO多路复用模型，具体而言就是依靠<code>epoll/kquue/IOCP</code>等系统调用，使用Reactor模式处理网络请求，比如大名鼎鼎的<code>Netty</code> 网络框架。</p><p>golang在这方面是如何做的呢？<code>net/http</code> 包实现了名为<code>netpoller</code> 的结构体，进行了如下的工作：</p><ul>
+<li><code>netpoller</code> 使用<code>epoll/kqueue/IOCP</code>等非阻塞系统调用等待IO事件的到来</li><li>真正处理请求的goroutine阻塞在netpoller上</li><li>有IO事件到来时候<code>netpooler</code>就通知阻塞的goroutine开始工作</li></ul><p>可以看出，<code>netpooler</code>实际上是一个非阻塞调用与阻塞调用之间的转换器，将非阻塞的系统调用成功应用在了<strong>golang使用阻塞goroutine+channel的编程范式上了。</strong> 而这种由netpooler引发的调度，实际上<strong>操作系统的内核线程是无感的，从内核线程的视角看，执行的都是连续的内核空间代码。</strong></p><p>还有一个问题，就是netpooler是什么时候启动的呢？</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#a6e22e>runtime</span><span style=color:#f92672>/</span><span style=color:#a6e22e>proc</span>.<span style=color:#66d9ef>go</span>:<span style=color:#ae81ff>110</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>main</span>() {
+</span></span><span style=display:flex><span>    <span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#66d9ef>if</span> <span style=color:#a6e22e>GOARCH</span> <span style=color:#f92672>!=</span> <span style=color:#e6db74>&#34;wasm&#34;</span> { <span style=color:#75715e>// no threads on wasm yet, so no sysmon
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        <span style=color:#a6e22e>systemstack</span>(<span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>            <span style=color:#a6e22e>newm</span>(<span style=color:#a6e22e>sysmon</span>, <span style=color:#66d9ef>nil</span>) <span style=color:#75715e>// 在程序启动时候，启动sysmon m
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        })
+</span></span><span style=display:flex><span>    }
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// Lock the main goroutine onto this, the main OS thread,
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#75715e>// during initialization. Most programs won&#39;t care, but a few
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#75715e>// do require certain calls to be made by the main thread.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#75715e>// Those can arrange for main.main to run in the main thread
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#75715e>// by calling runtime.LockOSThread during initialization
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#75715e>// to preserve the lock.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>    <span style=color:#a6e22e>lockOSThread</span>()
+</span></span><span style=display:flex><span>    <span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><ul>
+<li>编译好的程序入口位于"<code>**runtime/proc.go**"</code>， 执行<code>main()</code>函数时候会启动<code>sysmon</code>, 并绑定到一个M上执行</li><li><code>sysmon()</code>函数会启动<code>netpoller</code></li></ul><h3 id=222-读取channel以及互斥锁引发的调度>2.2.2 读取channel以及互斥锁引发的调度<a hidden class=anchor aria-hidden=true href=#222-读取channel以及互斥锁引发的调度>#</a></h3><p>对于channel和锁等待操作，同样都是在用户空间完成的。大致原理如下：</p><ul>
+<li>channel拥有两个队列存储阻塞的goroutine, 这些goroutine阻塞在接收和发送数据的状态</li><li><code>mutex</code>也同样有队列存储阻塞等待的goroutine</li><li>一旦阻塞条件接触，阻塞的<code>goroutine</code> 就变为<code>runnable</code> 状态，加入到某个P的任务队列中</li></ul><p>这部分的调度同样对操作系统内核线程是透明的，内核线程认为自己只是在执行用户空间代码，完全没有线程阻塞和上下文切换。</p><h2 id=3-结论>3 结论<a hidden class=anchor aria-hidden=true href=#3-结论>#</a></h2><p>通过上述讨论，可以将golang的调度主要分为以下两种：</p><ul>
+<li>阻塞式系统调用会触发真正的线程上下文切换</li><li>netpoller、读写channel、获取锁等操作引发的调度只在用户空间完成，操作系统对此是无感的，这也正是golang这门语言简单，高效的原因的之一。</li></ul><h2 id=4-不足>4 不足<a hidden class=anchor aria-hidden=true href=#4-不足>#</a></h2><p>本文未探讨golang调度器提供的一些公平调度方案。</p><p>对具体的GMP的调度算法未做深入探究。</p><h1 id=参考>参考<a hidden class=anchor aria-hidden=true href=#参考>#</a></h1><p>[1] Illustrated Tales of Go Runtime Scheduler. <a href=https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b>https://medium.com/@ankur_anand/illustrated-tales-of-go-runtime-scheduler-74809ef6d19b</a></p><p>[2] go tool trace. <a href=https://making.pusher.com/go-tool-trace>https://making.pusher.com/go-tool-trace</a></p><p>[3] Looking at Scheduling Tracking with GODEBUG. <a href=https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html>https://programming.vip/docs/looking-at-scheduling-tracking-with-godebug.html</a></p><p>[4] 也谈goroutine调度器. <a href=https://tonybai.com/2017/06/23/an-intro-about-goroutine-scheduler/>https://tonybai.com/2017/06/23/an-intro-about-goroutine-scheduler/</a></p><p>[5] Linux 的 I/O 模型以及 Go 的网络模型实现. <a href=https://xiaoxubeii.github.io/articles/linux-io-models-and-go-network-model-2/>https://xiaoxubeii.github.io/articles/linux-io-models-and-go-network-model-2/</a></p><p>[6] golang netpoller. <a href=https://yizhi.ren/2019/06/08/gonetpoller/>https://yizhi.ren/2019/06/08/gonetpoller/</a></p><h2 id=附录>附录：<a hidden class=anchor aria-hidden=true href=#附录>#</a></h2><h3 id=scheddetail-参数说明>scheddetail 参数说明<a hidden class=anchor aria-hidden=true href=#scheddetail-参数说明>#</a></h3><p>设置了<code>godebug=scheddetail=1</code> 情况下，假设示例输出如下：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell><span style=display:flex><span>$ GODEBUG<span style=color:#f92672>=</span>scheddetail<span style=color:#f92672>=</span>1,schedtrace<span style=color:#f92672>=</span><span style=color:#ae81ff>1000</span> ./main
+</span></span><span style=display:flex><span>SCHED 1000ms: gomaxprocs<span style=color:#f92672>=</span><span style=color:#ae81ff>4</span> idleprocs<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> threads<span style=color:#f92672>=</span><span style=color:#ae81ff>5</span> spinningthreads<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> idlethreads<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> runqueue<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> gcwaiting<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> nmidlelocked<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> stopwait<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> sysmonwait<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
+</span></span><span style=display:flex><span>  P0: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
+</span></span><span style=display:flex><span>  P1: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>4</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
+</span></span><span style=display:flex><span>  P2: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
+</span></span><span style=display:flex><span>  P3: status<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> schedtick<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> syscalltick<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> runqsize<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> gfreecnt<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span>
+</span></span><span style=display:flex><span>  M4: p<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>18</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  M3: p<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>22</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  M2: p<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>24</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  M1: p<span style=color:#f92672>=</span>-1 curg<span style=color:#f92672>=</span>-1 mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>1</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  M0: p<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> curg<span style=color:#f92672>=</span><span style=color:#ae81ff>26</span> mallocing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> throwing<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> preemptoff<span style=color:#f92672>=</span> locks<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> dying<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> spinning<span style=color:#f92672>=</span>false blocked<span style=color:#f92672>=</span>false lockedg<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G1: status<span style=color:#f92672>=</span>4<span style=color:#f92672>(</span>semacquire<span style=color:#f92672>)</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G2: status<span style=color:#f92672>=</span>4<span style=color:#f92672>(</span>force gc <span style=color:#f92672>(</span>idle<span style=color:#f92672>))</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G3: status<span style=color:#f92672>=</span>4<span style=color:#f92672>(</span>GC sweep wait<span style=color:#f92672>)</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G17: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G18: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>4</span> lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G19: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G20: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G21: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G22: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>3</span> lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G23: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G24: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>2</span> lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G25: status<span style=color:#f92672>=</span>1<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span>-1 lockedm<span style=color:#f92672>=</span>-1
+</span></span><span style=display:flex><span>  G26: status<span style=color:#f92672>=</span>2<span style=color:#f92672>()</span> m<span style=color:#f92672>=</span><span style=color:#ae81ff>0</span> lockedm<span style=color:#f92672>=</span>-1
+</span></span></code></pre></td></tr></table></div></div><p>G的信息如下：</p><ul>
+<li>status： G的状态</li><li>m：属于哪那个M</li><li>lockedm：M是否被锁定</li><li>G的状态表位于文件<code>runtime2.go</code></li></ul><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// defined constants
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>const</span> (
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// G status
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// ...
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gidle means this goroutine was just allocated and has not
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// yet been initialized.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gidle</span> = <span style=color:#66d9ef>iota</span> <span style=color:#75715e>// 0
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Grunnable means this goroutine is on a run queue. It is
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// not currently executing user code. The stack is not owned.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Grunnable</span> <span style=color:#75715e>// 1
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Grunning means this goroutine may execute user code. The
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// stack is owned by this goroutine. It is not on a run queue.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// It is assigned an M and a P (g.m and g.m.p are valid).
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Grunning</span> <span style=color:#75715e>// 2
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gsyscall means this goroutine is executing a system call.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// It is not executing user code. The stack is owned by this
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// goroutine. It is not on a run queue. It is assigned an M.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gsyscall</span> <span style=color:#75715e>// 3
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gwaiting means this goroutine is blocked in the runtime.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// It is not executing user code. It is not on a run queue,
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// but should be recorded somewhere (e.g., a channel wait
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// queue) so it can be ready()d when necessary. The stack is
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// not owned *except* that a channel operation may read or
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// write parts of the stack under the appropriate channel
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// lock. Otherwise, it is not safe to access the stack after a
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// goroutine enters _Gwaiting (e.g., it may get moved).
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gwaiting</span> <span style=color:#75715e>// 4
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gmoribund_unused is currently unused, but hardcoded in gdb
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// scripts.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gmoribund_unused</span> <span style=color:#75715e>// 5
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gdead means this goroutine is currently unused. It may be
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// just exited, on a free list, or just being initialized. It
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// is not executing user code. It may or may not have a stack
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// allocated. The G and its stack (if any) are owned by the M
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// that is exiting the G or that obtained the G from the free
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// list.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gdead</span> <span style=color:#75715e>// 6
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Genqueue_unused is currently unused.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Genqueue_unused</span> <span style=color:#75715e>// 7
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gcopystack means this goroutine&#39;s stack is being moved. It
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// is not executing user code and is not on a run queue. The
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// stack is owned by the goroutine that put it in _Gcopystack.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gcopystack</span> <span style=color:#75715e>// 8
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Gpreempted means this goroutine stopped itself for a
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// suspendG preemption. It is like _Gwaiting, but nothing is
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// yet responsible for ready()ing it. Some suspendG must CAS
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// the status to _Gwaiting to take responsibility for
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// ready()ing this G.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Gpreempted</span> <span style=color:#75715e>// 9
+</span></span></span></code></pre></td></tr></table></div></div><ul>
+<li>G阻塞的原因如下</li></ul><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#a6e22e>runtime2</span>.<span style=color:#66d9ef>go</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>const</span> (
+</span></span><span style=display:flex><span><span style=color:#a6e22e>waitReasonZero</span>                  <span style=color:#a6e22e>waitReason</span> = <span style=color:#66d9ef>iota</span> <span style=color:#75715e>// &#34;&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCAssistMarking</span>                         <span style=color:#75715e>// &#34;GC assist marking&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonIOWait</span>                                  <span style=color:#75715e>// &#34;IO wait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanReceiveNilChan</span>                      <span style=color:#75715e>// &#34;chan receive (nil chan)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanSendNilChan</span>                         <span style=color:#75715e>// &#34;chan send (nil chan)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonDumpingHeap</span>                             <span style=color:#75715e>// &#34;dumping heap&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGarbageCollection</span>                       <span style=color:#75715e>// &#34;garbage collection&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGarbageCollectionScan</span>                   <span style=color:#75715e>// &#34;garbage collection scan&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonPanicWait</span>                               <span style=color:#75715e>// &#34;panicwait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSelect</span>                                  <span style=color:#75715e>// &#34;select&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSelectNoCases</span>                           <span style=color:#75715e>// &#34;select (no cases)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCAssistWait</span>                            <span style=color:#75715e>// &#34;GC assist wait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCSweepWait</span>                             <span style=color:#75715e>// &#34;GC sweep wait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCScavengeWait</span>                          <span style=color:#75715e>// &#34;GC scavenge wait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanReceive</span>                             <span style=color:#75715e>// &#34;chan receive&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonChanSend</span>                                <span style=color:#75715e>// &#34;chan send&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonFinalizerWait</span>                           <span style=color:#75715e>// &#34;finalizer wait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonForceGCIdle</span>                             <span style=color:#75715e>// &#34;force gc (idle)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSemacquire</span>                              <span style=color:#75715e>// &#34;semacquire&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSleep</span>                                   <span style=color:#75715e>// &#34;sleep&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonSyncCondWait</span>                            <span style=color:#75715e>// &#34;sync.Cond.Wait&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonTimerGoroutineIdle</span>                      <span style=color:#75715e>// &#34;timer goroutine (idle)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonTraceReaderBlocked</span>                      <span style=color:#75715e>// &#34;trace reader (blocked)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonWaitForGCCycle</span>                          <span style=color:#75715e>// &#34;wait for GC cycle&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonGCWorkerIdle</span>                            <span style=color:#75715e>// &#34;GC worker (idle)&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonPreempted</span>                               <span style=color:#75715e>// &#34;preempted&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>waitReasonDebugCall</span>                               <span style=color:#75715e>// &#34;debug call&#34;
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>)
+</span></span></code></pre></td></tr></table></div></div><p>M的信息如下：</p><ul>
+<li>P: 当前与哪个P绑定</li><li>curg: 当前执行哪个G</li><li>gfreecnt: 可用的 G (Gdead state).</li><li>mallocing: 是否在分配内存</li><li>Throwing: 是否抛出了一场</li><li>preemptoff: 如果非空，当前执行的G不会被抢占</li></ul><p>P的信息如下：</p><ul>
+<li>status: 运行状态</li><li>Schedule tick: 调度次数</li><li>syscalltick: 系统调用的次数</li><li>M: 与哪个M进行绑定</li><li>runqsize: 运行队列的大小</li><li>gfreecnt: 可用的 G (Gdead state).</li><li>P的状态表如下：</li></ul><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>const</span> (
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// P status
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// _Pidle means a P is not being used to run user code or the
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// scheduler. Typically, it&#39;s on the idle P list and available
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// to the scheduler, but it may just be transitioning between
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// other states.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>//
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// The P is owned by the idle list or by whatever is
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// transitioning its state. Its run queue is empty.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Pidle</span> = <span style=color:#66d9ef>iota</span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// _Prunning means a P is owned by an M and is being used to
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// run user code or the scheduler. Only the M that owns this P
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// is allowed to change the P&#39;s status from _Prunning. The M
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// may transition the P to _Pidle (if it has no more work to
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// do), _Psyscall (when entering a syscall), or _Pgcstop (to
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// halt for the GC). The M may also hand ownership of the P
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// off directly to another M (e.g., to schedule a locked G).
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Prunning</span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// _Psyscall means a P is not running user code. It has
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// affinity to an M in a syscall but is not owned by it and
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// may be stolen by another M. This is similar to _Pidle but
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// uses lightweight transitions and maintains M affinity.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>//
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// Leaving _Psyscall must be done with a CAS, either to steal
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// or retake the P. Note that there&#39;s an ABA hazard: even if
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// an M successfully CASes its original P back to _Prunning
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// after a syscall, it must understand the P may have been
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// used by another M in the interim.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Psyscall</span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// _Pgcstop means a P is halted for STW and owned by the M
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// that stopped the world. The M that stopped the world
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// continues to use its P, even in _Pgcstop. Transitioning
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// from _Prunning to _Pgcstop causes an M to release its P and
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// park.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>//
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// The P retains its run queue and startTheWorld will restart
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// the scheduler on Ps with non-empty run queues.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Pgcstop</span>
+</span></span><span style=display:flex><span>	<span style=color:#75715e>// _Pdead means a P is no longer used (GOMAXPROCS shrank). We
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// reuse Ps if GOMAXPROCS increases. A dead P is mostly
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// stripped of its resources, though a few things remain
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#75715e>// (e.g., trace buffers).
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>_Pdead</span>
+</span></span><span style=display:flex><span>)
+</span></span></code></pre></td></tr></table></div></div></div><footer class=post-footer>
 <ul class=post-tags>
-<li><a href=https://tianyuxue.github.io/tags/golang/>golang</a></li>
-<li><a href=https://tianyuxue.github.io/tags/%E8%B0%83%E5%BA%A6%E5%99%A8/>调度器</a></li>
-</ul>
-<nav class=paginav>
+<li><a href=https://tianyuxue.github.io/tags/golang/>golang</a></li><li><a href=https://tianyuxue.github.io/tags/%E8%B0%83%E5%BA%A6%E5%99%A8/>调度器</a></li></ul><nav class=paginav>
 <a class=prev href=https://tianyuxue.github.io/posts/golang-gc/>
 <span class=title>« Prev Page</span>
 <br>
 <span>关于Golang GC的一些分析</span>
 </a>
-</nav>
-</footer>
-</article>
-</main>
-<footer class=footer>
+</nav></footer></article></main><footer class=footer>
 <span>&copy; 2022 <a href=https://tianyuxue.github.io/>ACoder</a></span>
 <span>
 Powered by
@@ -799,12 +615,9 @@ Powered by
 </span>
 <div>
 <a href=https://beian.miit.gov.cn/ rel="external nofollow" target=_blank>京ICP备2021000699号</a>
-</div>
-</footer>
-<a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentcolor"><path d="M12 6H0l6-6z"/></svg>
+</div></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentcolor"><path d="M12 6H0l6-6z"/></svg>
 </a>
-<script>let menu=document.getElementById('menu');menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener("click",function(b){b.preventDefault();var a=this.getAttribute("href").substr(1);window.matchMedia('(prefers-reduced-motion: reduce)').matches?document.querySelector(`[id='${decodeURIComponent(a)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(a)}']`).scrollIntoView({behavior:"smooth"}),a==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${a}`)})})</script>
+<script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(t){t.preventDefault();var e=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(e)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(e)}']`).scrollIntoView({behavior:"smooth"}),e==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${e}`)})})</script>
 <script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script>
-<script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove('dark'),localStorage.setItem("pref-theme",'light')):(document.body.classList.add('dark'),localStorage.setItem("pref-theme",'dark'))})</script>
-</body>
-</html>
+<script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script>
+</body></html>

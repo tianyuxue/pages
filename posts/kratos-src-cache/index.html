@@ -3,8 +3,7 @@
 <meta http-equiv=x-ua-compatible content="IE=edge">
 <meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no">
 <meta name=robots content="index, follow">
-<title>Kratos源码分析 - 缓存部分 | ACoder</title>
-<meta name=keywords content="cache,golang,kratos">
+<title>Kratos源码分析 - 缓存部分 | ACoder</title><meta name=keywords content="cache,golang,kratos">
 <meta name=description content="
 本文的讨论基于Kratos v1.0.x版本
 
@@ -14,7 +13,7 @@ Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关�
 <meta name=google-site-verification content="G-0T00DX73T1">
 <link crossorigin=anonymous href=/assets/css/stylesheet.min.c88963fe2d79462000fd0fb1b3737783c32855d340583e4523343f8735c787f0.css integrity="sha256-yIlj/i15RiAA/Q+xs3N3g8MoVdNAWD5FIzQ/hzXHh/A=" rel="preload stylesheet" as=style>
 <link rel=preload href=images/code.png as=image>
-<script defer crossorigin=anonymous src=/assets/js/highlight.min.7680afc38aa6b15ddf158a4f3780b7b1f7dde7e91d26f073e6229bb7a0793c92.js integrity="sha256-doCvw4qmsV3fFYpPN4C3sffd5+kdJvBz5iKbt6B5PJI=" onload=hljs.initHighlightingOnLoad()></script>
+<script defer crossorigin=anonymous src=/assets/js/highlight.min.4dcb3c4f38462f66c6b6137227726f5543cb934cca9788f041c087e374491df2.js integrity="sha256-Tcs8TzhGL2bGthNyJ3JvVUPLk0zKl4jwQcCH43RJHfI=" onload=hljs.initHighlightingOnLoad()></script>
 <link rel=icon href=https://tianyuxue.github.io/images/code.png>
 <link rel=icon type=image/png sizes=16x16 href=https://tianyuxue.github.io/images/code.png>
 <link rel=icon type=image/png sizes=32x32 href=https://tianyuxue.github.io/images/code.png>
@@ -23,11 +22,8 @@ Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关�
 <meta name=theme-color content="#2e2e33">
 <meta name=msapplication-TileColor content="#2e2e33">
 <noscript>
-<style>#theme-toggle,.top-link{display:none}</style>
-<style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--hljs-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style>
-</noscript>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-0T00DX73T1"></script>
-<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-0T00DX73T1',{anonymize_ip:!1})}</script>
+<style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--hljs-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style></noscript><script async src="https://www.googletagmanager.com/gtag/js?id=G-0T00DX73T1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date),gtag("config","G-0T00DX73T1",{anonymize_ip:!1})}</script>
 <meta property="og:title" content="Kratos源码分析 - 缓存部分">
 <meta property="og:description" content="
 本文的讨论基于Kratos v1.0.x版本
@@ -46,10 +42,9 @@ Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关�
 
 Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。">
 <script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://tianyuxue.github.io/posts/"},{"@type":"ListItem","position":2,"name":"Kratos源码分析 - 缓存部分","item":"https://tianyuxue.github.io/posts/kratos-src-cache/"}]}</script>
-<script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Kratos源码分析 - 缓存部分","name":"Kratos源码分析 - 缓存部分","description":" 本文的讨论基于Kratos v1.0.x版本\n Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。\n","keywords":["cache","golang","kratos"],"articleBody":" 本文的讨论基于Kratos v1.0.x版本\n Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。\n1 Kratos缓存部分提供的功能 Kratos提供了缓存相关的常用功能，见下表：\n 使用空缓存避免缓存穿透 缓存失效后，回源请求支持分批获取数据库数据，减少数据库访问延时 异步添加缓存 监控缓存回源比 缓存失效后，通过singleflight模式限制回源访问数据库的并发度，避免数据库压力过大  2 代码实现 Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于tool/kartos-gen-bts/test-data/dao.bts.go文件中的Demos()方法，具体含义可以参考代码中的注释：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87  // Demos get data from cache if miss will call source method, then add to cache. func (d *dao) Demos(c context.Context, keys []int64) (res map[int64]*Demo, err error) { if len(keys) == 0 { return } addCache := true // 首先尝试从缓存中加载数据 \tif res, err = d.CacheDemos(c, keys); err != nil { addCache = false res = nil err = nil } // miss 用来存储缓存未命中的数据 \tvar miss []int64 for _, key := range keys { if (res == nil) || (res[key] == nil) { miss = append(miss, key) } } // 统计缓存命中数量 \tcache.MetricHits.Add(float64(len(keys)-len(miss)), \"bts:Demos\") for k, v := range res { if v.ID == -1 { delete(res, k) } } missLen := len(miss) if missLen == 0 { return } missData := make(map[int64]*Demo, missLen) // 统计缓存未命中的数量  cache.MetricMisses.Add(float64(missLen), \"bts:Demos\") var mutex sync.Mutex // 通过errgroup包，分批从数据库中执行回源，请求数据量大的的情况下可以降低延迟 \tgroup := errgroup.WithCancel(c) if missLen  20 { group.GOMAXPROCS(20) } var run = func(ms []int64) { group.Go(func(ctx context.Context) (err error) { data, err := d.RawDemos(ctx, ms) mutex.Lock() for k, v := range data { missData[k] = v } mutex.Unlock() return }) } var ( i int n = missLen / 2 ) for i = 0; i n; i++ { run(miss[i*2 : (i+1)*2]) } if len(miss[i*2:])  0 { run(miss[i*2:]) } err = group.Wait() if res == nil { res = make(map[int64]*Demo, len(keys)) } for k, v := range missData { res[k] = v } if err != nil { return } // 数据库中不存在的数据也在缓存中存储一份默认值 \tfor _, key := range miss { if res[key] == nil { missData[key] = \u0026Demo{ID: -1} } } if !addCache { return } // 通过异步的方法添加缓存，减少本次请求的延迟 \td.cache.Do(c, func(c context.Context) { d.AddCacheDemos(c, missData) }) return }   2.1 缓存穿透 缓存穿透指的是，在读数据的时候，没有命中缓存，请求“穿透”了缓存，直接访问后端数据库的情况。缓存穿透的情况下，缓存没有发挥作用，业务系统虽然去缓存查询数据，但缓存中没有数据，因此导致了业务系统需要再次去存储系统查询数据。通常不存在的数据访问应该不会太多，但是如果针对不存在数据进行大量恶意访问，就会导致这些请求全部被数据库处理，情况严重的话会造成整个业务系统不可用。这种情况的解决方案是，对于不存在的请求，也在缓存中存放一份表示不存在的数据，Kratos的代码中也是这样实现的。\nKrato tool genbts 工具提供了配置项-nullcache来避免缓存穿透，配置了之后，生成的代码中会在回源之后增加判断，从上述代码的74-78行可以看到，从数据库读取数据之后，如果请求的缓存仍然为空，那么就缓存一个不存在的值，避免缓存穿透。\n2.2 回源数据分批请求数据库 如果缓存未命中，就需要从数据库中回源访问，Kratos的回源访问支持多线程并发访问，见上述代码38-62行。上述代码首先使用了github.com/go-kratos/kratos/pkg/sync/errgroup包， 定义了回源函数，然后将总的数据库请求分片，分批执行。\n这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49  // A Group is a collection of goroutines working on subtasks that are part of // the same overall task. // // A zero Group is valid and does not cancel on error. type Group struct { err error // 最终的错误信息 \twg sync.WaitGroup // 用于确保所有子任务结束执行 \terrOnce sync.Once workerOnce sync.Once ch chan func(ctx context.Context) error // 存储待处理的任务 \tchs []func(ctx context.Context) error ctx context.Context cancel func() // 出错后的取消函数 } ... // Go方法增加子任务 func (g *Group) Go(f func(ctx context.Context) error) { g.wg.Add(1) if g.ch != nil { select { case g.ch  f: default: g.chs = append(g.chs, f) } return } go g.do(f) } // Wait方法等待所有子任务结束 func (g *Group) Wait() error { if g.ch != nil { for _, f := range g.chs { g.ch  f } } g.wg.Wait() if g.ch != nil { close(g.ch) // let all receiver exit \t} if g.cancel != nil { g.cancel() } return g.err }   2.3 异步添加缓存 如果缓存未命中，从数据库回源之后，还需要将数据加入到缓存中。但是当前请求已经获取了客户端需要的数据，因此这时候可以采用异步添加缓存的策略，当前请求直接返回给客户端。从2.1 部分开始前的代码83-85行可以看到，Kratos使用了github.com/go-kratos/kratos/pkg/sync/pipeline/fanout包来异步增加缓存。\nfanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了buffer类型的channel来存储任务，其处理任务的核心代码为：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40  // New new a fanout struct. func New(name string, opts ...Option) *Fanout { if name == \"\" { name = \"anonymous\" } o := \u0026options{ worker: 1, buffer: 1024, } for _, op := range opts { op(o) } c := \u0026Fanout{ ch: make(chan item, o.buffer), name: name, options: o, } c.ctx, c.cancel = context.WithCancel(context.Background()) c.waiter.Add(o.worker) // 在这里启动worker \tfor i := 0; i o.worker; i++ { go c.proc() } return c } ... func (c *Fanout) proc() { defer c.waiter.Done() for { select { // 循环处理channel中待处理的任务 \tcase t := c.ch: wrapFunc(t.f)(t.ctx) _metricChanSize.Set(float64(len(c.ch)), c.name) _metricCount.Inc(c.name) case c.ctx.Done(): return } } }   2.4 监控缓存命中率 缓存监控的重点指标是缓存命中率，Kratos在也是在请求缓存之后，根据请求结果统计了如下数据：\n 请求缓存之后记录缓存命中数 请求缓存之后记录缓存未命中数  具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19  const _metricNamespace = \"cache\" // be used in tool/kratos-gen-bts var ( MetricHits = metric.NewCounterVec(\u0026metric.CounterVecOpts{ Namespace: _metricNamespace, Subsystem: \"\", Name: \"hits_total\", Help: \"cache hits total.\", Labels: []string{\"name\"}, }) MetricMisses = metric.NewCounterVec(\u0026metric.CounterVecOpts{ Namespace: _metricNamespace, Subsystem: \"\", Name: \"misses_total\", Help: \"cache misses total.\", Labels: []string{\"name\"}, }) )   2.5 使用singleflight模式避免缓存失效引起的缓存雪崩 缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。“缓存雪崩是指当缓存失效后引起系统性能急剧下降的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。\"[1]\n针对这个问题，Kratos使用了singleflight模式（https://github.com/golang/sync/blob/master/singleflight/singleflight.go），如果一个key失效了，同一时间只允许一个线程执行缓存更新操作。这个方法限制了缓存更新的并发度，有助于解决缓存雪崩问题。\n要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下-singleflight=true配置：\n1 2  // bts: -sync=true -nullcache=\u0026Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true Demo(c context.Context, key int64) (*Demo, error)   生成代码中增加了一个全局变量cacheSingleFlights限制回源请求的并发度：\n1  var cacheSingleFlights = [1]*singleflight.Group{{}}   然后在具体的回源代码中：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38  // Demo get data from cache if miss will call source method, then add to cache. func (d *dao) Demo(c context.Context, key int64) (res *Demo, err error) { addCache := true res, err = d.CacheDemo(c, key) if err != nil { addCache = false err = nil } defer func() { if res.ID == -1 { res = nil } }() if res != nil { cache.MetricHits.Inc(\"bts:Demo\") return } var rr interface{} sf := d.cacheSFDemo(key) rr, err, _ = cacheSingleFlights[0].Do(sf, func() (r interface{}, e error) { cache.MetricMisses.Inc(\"bts:Demo\") r, e = d.RawDemo(c, key) return }) res = rr.(*Demo) if err != nil { return } miss := res if miss == nil { miss = \u0026Demo{ID: -1} } if !addCache { return } d.AddCacheDemo(c, key, miss) return }   从18到28行的调用可以看到，Kratos使用全局变量cacheSingleFlights限制了数据库回源请求RawDemo()的并发度，如果看一下singleflight的实现，可以看到其内部使用了map存储要执行的函数，确保在同一时间，同一个函数只被执行一次。\nsingleflight模式只限制了，在缓存失效时，一个进程内只有一个请求到达数据库。在当前的微服务架构下，如果一个服务有上百个副本在运行，那么也有可能造成数据库压力增加，这种情况下可以采用分布式锁或者后台更新缓存的策略。\n3 总结 本文从源码的角度讨论了Kratos生成的缓存回源代码的一些功能。\n引用 [1] 高性能缓存架构 https://time.geekbang.org/column/article/8640\n","wordCount":"1001","inLanguage":"en","image":"https://tianyuxue.github.io/images/mountain.jpg","datePublished":"2021-01-11T00:00:00Z","dateModified":"2021-01-11T00:00:00Z","author":{"@type":"Person","name":"jitianyu"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://tianyuxue.github.io/posts/kratos-src-cache/"},"publisher":{"@type":"Organization","name":"ACoder","logo":{"@type":"ImageObject","url":"https://tianyuxue.github.io/images/code.png"}}}</script>
-</head>
-<body id=top>
-<script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add('dark'):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove('dark'):window.matchMedia('(prefers-color-scheme: dark)').matches&&document.body.classList.add('dark')</script>
+<script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Kratos源码分析 - 缓存部分","name":"Kratos源码分析 - 缓存部分","description":" 本文的讨论基于Kratos v1.0.x版本\n Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。\n","keywords":["cache","golang","kratos"],"articleBody":" 本文的讨论基于Kratos v1.0.x版本\n Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。\n1 Kratos缓存部分提供的功能 Kratos提供了缓存相关的常用功能，见下表：\n 使用空缓存避免缓存穿透 缓存失效后，回源请求支持分批获取数据库数据，减少数据库访问延时 异步添加缓存 监控缓存回源比 缓存失效后，通过singleflight模式限制回源访问数据库的并发度，避免数据库压力过大  2 代码实现 Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于tool/kartos-gen-bts/test-data/dao.bts.go文件中的Demos()方法，具体含义可以参考代码中的注释：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87  // Demos get data from cache if miss will call source method, then add to cache. func (d *dao) Demos(c context.Context, keys []int64) (res map[int64]*Demo, err error) { \tif len(keys) == 0 { \treturn \t} \taddCache := true  // 首先尝试从缓存中加载数据 \tif res, err = d.CacheDemos(c, keys); err != nil { \taddCache = false \tres = nil \terr = nil \t}  // miss 用来存储缓存未命中的数据 \tvar miss []int64 \tfor _, key := range keys { \tif (res == nil) || (res[key] == nil) { \tmiss = append(miss, key) \t} \t}  // 统计缓存命中数量 \tcache.MetricHits.Add(float64(len(keys)-len(miss)), \"bts:Demos\")  \tfor k, v := range res { \tif v.ID == -1 { \tdelete(res, k) \t} \t} \tmissLen := len(miss) \tif missLen == 0 { \treturn \t} \tmissData := make(map[int64]*Demo, missLen)  // 统计缓存未命中的数量  cache.MetricMisses.Add(float64(missLen), \"bts:Demos\") \tvar mutex sync.Mutex   // 通过errgroup包，分批从数据库中执行回源，请求数据量大的的情况下可以降低延迟 \tgroup := errgroup.WithCancel(c) \tif missLen  20 { \tgroup.GOMAXPROCS(20) \t} \tvar run = func(ms []int64) { \tgroup.Go(func(ctx context.Context) (err error) { \tdata, err := d.RawDemos(ctx, ms) \tmutex.Lock() \tfor k, v := range data { \tmissData[k] = v \t} \tmutex.Unlock() \treturn \t}) \t} \tvar ( \ti int \tn = missLen / 2 \t) \tfor i = 0; i n; i++ { \trun(miss[i*2 : (i+1)*2]) \t} \tif len(miss[i*2:])  0 { \trun(miss[i*2:]) \t} \terr = group.Wait() \tif res == nil { \tres = make(map[int64]*Demo, len(keys)) \t} \tfor k, v := range missData { \tres[k] = v \t} \tif err != nil { \treturn \t}  // 数据库中不存在的数据也在缓存中存储一份默认值 \tfor _, key := range miss { \tif res[key] == nil { \tmissData[key] = \u0026Demo{ID: -1} \t} \t} \tif !addCache { \treturn \t}  // 通过异步的方法添加缓存，减少本次请求的延迟 \td.cache.Do(c, func(c context.Context) { \td.AddCacheDemos(c, missData) \t}) \treturn }   2.1 缓存穿透 缓存穿透指的是，在读数据的时候，没有命中缓存，请求“穿透”了缓存，直接访问后端数据库的情况。缓存穿透的情况下，缓存没有发挥作用，业务系统虽然去缓存查询数据，但缓存中没有数据，因此导致了业务系统需要再次去存储系统查询数据。通常不存在的数据访问应该不会太多，但是如果针对不存在数据进行大量恶意访问，就会导致这些请求全部被数据库处理，情况严重的话会造成整个业务系统不可用。这种情况的解决方案是，对于不存在的请求，也在缓存中存放一份表示不存在的数据，Kratos的代码中也是这样实现的。\nKrato tool genbts 工具提供了配置项-nullcache来避免缓存穿透，配置了之后，生成的代码中会在回源之后增加判断，从上述代码的74-78行可以看到，从数据库读取数据之后，如果请求的缓存仍然为空，那么就缓存一个不存在的值，避免缓存穿透。\n2.2 回源数据分批请求数据库 如果缓存未命中，就需要从数据库中回源访问，Kratos的回源访问支持多线程并发访问，见上述代码38-62行。上述代码首先使用了github.com/go-kratos/kratos/pkg/sync/errgroup包， 定义了回源函数，然后将总的数据库请求分片，分批执行。\n这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49  // A Group is a collection of goroutines working on subtasks that are part of // the same overall task. // // A zero Group is valid and does not cancel on error. type Group struct { \terr error // 最终的错误信息 \twg sync.WaitGroup // 用于确保所有子任务结束执行 \terrOnce sync.Once  \tworkerOnce sync.Once \tch chan func(ctx context.Context) error // 存储待处理的任务 \tchs []func(ctx context.Context) error  \tctx context.Context \tcancel func() // 出错后的取消函数 }  ...  // Go方法增加子任务 func (g *Group) Go(f func(ctx context.Context) error) { \tg.wg.Add(1) \tif g.ch != nil { \tselect { \tcase g.ch  f: \tdefault: \tg.chs = append(g.chs, f) \t} \treturn \t} \tgo g.do(f) }  // Wait方法等待所有子任务结束 func (g *Group) Wait() error { \tif g.ch != nil { \tfor _, f := range g.chs { \tg.ch  f \t} \t} \tg.wg.Wait() \tif g.ch != nil { \tclose(g.ch) // let all receiver exit \t} \tif g.cancel != nil { \tg.cancel() \t} \treturn g.err }   2.3 异步添加缓存 如果缓存未命中，从数据库回源之后，还需要将数据加入到缓存中。但是当前请求已经获取了客户端需要的数据，因此这时候可以采用异步添加缓存的策略，当前请求直接返回给客户端。从2.1 部分开始前的代码83-85行可以看到，Kratos使用了github.com/go-kratos/kratos/pkg/sync/pipeline/fanout包来异步增加缓存。\nfanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了buffer类型的channel来存储任务，其处理任务的核心代码为：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40  // New new a fanout struct. func New(name string, opts ...Option) *Fanout { \tif name == \"\" { \tname = \"anonymous\" \t} \to := \u0026options{ \tworker: 1, \tbuffer: 1024, \t} \tfor _, op := range opts { \top(o) \t} \tc := \u0026Fanout{ \tch: make(chan item, o.buffer), \tname: name, \toptions: o, \t} \tc.ctx, c.cancel = context.WithCancel(context.Background()) \tc.waiter.Add(o.worker)  // 在这里启动worker \tfor i := 0; i o.worker; i++ { \tgo c.proc() \t} \treturn c } ... func (c *Fanout) proc() { \tdefer c.waiter.Done() \tfor { \tselect {  // 循环处理channel中待处理的任务 \tcase t := c.ch: \twrapFunc(t.f)(t.ctx) \t_metricChanSize.Set(float64(len(c.ch)), c.name) \t_metricCount.Inc(c.name) \tcase c.ctx.Done(): \treturn \t} \t} }   2.4 监控缓存命中率 缓存监控的重点指标是缓存命中率，Kratos在也是在请求缓存之后，根据请求结果统计了如下数据：\n 请求缓存之后记录缓存命中数 请求缓存之后记录缓存未命中数  具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19  const _metricNamespace = \"cache\"  // be used in tool/kratos-gen-bts var ( \tMetricHits = metric.NewCounterVec(\u0026metric.CounterVecOpts{ \tNamespace: _metricNamespace, \tSubsystem: \"\", \tName: \"hits_total\", \tHelp: \"cache hits total.\", \tLabels: []string{\"name\"}, \t}) \tMetricMisses = metric.NewCounterVec(\u0026metric.CounterVecOpts{ \tNamespace: _metricNamespace, \tSubsystem: \"\", \tName: \"misses_total\", \tHelp: \"cache misses total.\", \tLabels: []string{\"name\"}, \t}) )   2.5 使用singleflight模式避免缓存失效引起的缓存雪崩 缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。“缓存雪崩是指当缓存失效后引起系统性能急剧下降的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。\"[1]\n针对这个问题，Kratos使用了singleflight模式（https://github.com/golang/sync/blob/master/singleflight/singleflight.go），如果一个key失效了，同一时间只允许一个线程执行缓存更新操作。这个方法限制了缓存更新的并发度，有助于解决缓存雪崩问题。\n要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下-singleflight=true配置：\n1 2  // bts: -sync=true -nullcache=\u0026Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true Demo(c context.Context, key int64) (*Demo, error)   生成代码中增加了一个全局变量cacheSingleFlights限制回源请求的并发度：\n1  var cacheSingleFlights = [1]*singleflight.Group{{}}   然后在具体的回源代码中：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38  // Demo get data from cache if miss will call source method, then add to cache. func (d *dao) Demo(c context.Context, key int64) (res *Demo, err error) { \taddCache := true \tres, err = d.CacheDemo(c, key) \tif err != nil { \taddCache = false \terr = nil \t} \tdefer func() { \tif res.ID == -1 { \tres = nil \t} \t}() \tif res != nil { \tcache.MetricHits.Inc(\"bts:Demo\") \treturn \t} \tvar rr interface{} \tsf := d.cacheSFDemo(key) \trr, err, _ = cacheSingleFlights[0].Do(sf, func() (r interface{}, e error) { \tcache.MetricMisses.Inc(\"bts:Demo\") \tr, e = d.RawDemo(c, key) \treturn \t}) \tres = rr.(*Demo) \tif err != nil { \treturn \t} \tmiss := res \tif miss == nil { \tmiss = \u0026Demo{ID: -1} \t} \tif !addCache { \treturn \t} \td.AddCacheDemo(c, key, miss) \treturn }   从18到28行的调用可以看到，Kratos使用全局变量cacheSingleFlights限制了数据库回源请求RawDemo()的并发度，如果看一下singleflight的实现，可以看到其内部使用了map存储要执行的函数，确保在同一时间，同一个函数只被执行一次。\nsingleflight模式只限制了，在缓存失效时，一个进程内只有一个请求到达数据库。在当前的微服务架构下，如果一个服务有上百个副本在运行，那么也有可能造成数据库压力增加，这种情况下可以采用分布式锁或者后台更新缓存的策略。\n3 总结 本文从源码的角度讨论了Kratos生成的缓存回源代码的一些功能。\n引用 [1] 高性能缓存架构 https://time.geekbang.org/column/article/8640\n","wordCount":"1001","inLanguage":"en","image":"https://tianyuxue.github.io/images/mountain.jpg","datePublished":"2021-01-11T00:00:00Z","dateModified":"2021-01-11T00:00:00Z","author":{"@type":"Person","name":"jitianyu"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://tianyuxue.github.io/posts/kratos-src-cache/"},"publisher":{"@type":"Organization","name":"ACoder","logo":{"@type":"ImageObject","url":"https://tianyuxue.github.io/images/code.png"}}}</script>
+</head><body id=top>
+<script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add("dark"):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove("dark"):window.matchMedia("(prefers-color-scheme: dark)").matches&&document.body.classList.add("dark")</script>
 <header class=header>
 <nav class=nav>
 <div class=logo>
@@ -59,618 +54,537 @@ Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关�
 <button id=theme-toggle accesskey=t title="(Alt + T)"><svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
 </button>
 </span>
-</div>
-<ul id=menu>
+</div><ul id=menu>
 <li>
 <a href=https://tianyuxue.github.io/search/ title="搜索 (Alt + /)" accesskey=/>
 <span>搜索</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/posts/ title=文章>
 <span>文章</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/categories/ title=分类>
 <span>分类</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/tags/ title=标签>
 <span>标签</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/about/ title=关于我>
 <span><i class="fa fa-heart"></i>关于我</span>
 </a>
-</li>
-<li>
+</li><li>
 <a href=https://tianyuxue.github.io/archives title=归档>
 <span>归档</span>
 </a>
-</li>
-</ul>
-</nav>
-</header>
-<main class=main>
+</li></ul></nav></header><main class=main>
 <article class=post-single>
 <header class=post-header>
-<div class=breadcrumbs><a href=https://tianyuxue.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://tianyuxue.github.io/posts/>Posts</a></div>
-<h1 class=post-title>
+<div class=breadcrumbs><a href=https://tianyuxue.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://tianyuxue.github.io/posts/>Posts</a></div><h1 class=post-title>
 Kratos源码分析 - 缓存部分
-</h1>
-<div class=post-meta><span title="2021-01-11 00:00:00 +0000 UTC">January 11, 2021</span>&nbsp;·&nbsp;5 min&nbsp;·&nbsp;jitianyu
-</div>
-</header>
-<figure class=entry-cover><img loading=lazy src=https://tianyuxue.github.io/images/mountain.jpg alt>
-</figure>
-<div class=post-content><blockquote>
-<p>本文的讨论基于Kratos v1.0.x版本</p>
-</blockquote>
-<p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。</p>
-<h2 id=1-kratos缓存部分提供的功能>1 Kratos缓存部分提供的功能<a hidden class=anchor aria-hidden=true href=#1-kratos缓存部分提供的功能>#</a></h2>
-<p>Kratos提供了缓存相关的常用功能，见下表：</p>
-<ul>
-<li>使用空缓存避免缓存穿透</li>
-<li>缓存失效后，回源请求支持分批获取数据库数据，减少数据库访问延时</li>
-<li>异步添加缓存</li>
-<li>监控缓存回源比</li>
-<li>缓存失效后，通过<code>singleflight</code>模式限制回源访问数据库的并发度，避免数据库压力过大</li>
-</ul>
-<h2 id=2-代码实现>2 代码实现<a hidden class=anchor aria-hidden=true href=#2-代码实现>#</a></h2>
-<p>Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于<code>tool/kartos-gen-bts/test-data/dao.bts.go</code>文件中的<code>Demos()</code>方法，具体含义可以参考代码中的注释：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">50
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">51
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">52
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">53
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">54
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">55
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">56
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">57
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">58
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">59
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">60
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">61
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">62
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">63
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">64
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">65
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">66
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">67
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">68
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">69
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">70
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">71
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">72
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">73
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">74
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">75
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">76
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">77
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">78
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">79
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">80
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">81
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">82
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">83
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">84
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">85
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">86
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">87
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#75715e>// Demos get data from cache if miss will call source method, then add to cache.
-</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>d</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>dao</span>) <span style=color:#a6e22e>Demos</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>, <span style=color:#a6e22e>keys</span> []<span style=color:#66d9ef>int64</span>) (<span style=color:#a6e22e>res</span> <span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>int64</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
-	<span style=color:#66d9ef>if</span> len(<span style=color:#a6e22e>keys</span>) <span style=color:#f92672>==</span> <span style=color:#ae81ff>0</span> {
-		<span style=color:#66d9ef>return</span>
-	}
-	<span style=color:#a6e22e>addCache</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>true</span>
-    <span style=color:#75715e>// 首先尝试从缓存中加载数据
-</span><span style=color:#75715e></span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span>, <span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>CacheDemos</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>keys</span>); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#a6e22e>addCache</span> = <span style=color:#66d9ef>false</span>
-		<span style=color:#a6e22e>res</span> = <span style=color:#66d9ef>nil</span>
-		<span style=color:#a6e22e>err</span> = <span style=color:#66d9ef>nil</span>
-	}
-    <span style=color:#75715e>// miss 用来存储缓存未命中的数据
-</span><span style=color:#75715e></span>	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>miss</span> []<span style=color:#66d9ef>int64</span>
-	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>key</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>keys</span> {
-		<span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>res</span> <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span>) <span style=color:#f92672>||</span> (<span style=color:#a6e22e>res</span>[<span style=color:#a6e22e>key</span>] <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span>) {
-			<span style=color:#a6e22e>miss</span> = append(<span style=color:#a6e22e>miss</span>, <span style=color:#a6e22e>key</span>)
-		}
-	}
-    <span style=color:#75715e>// 统计缓存命中数量
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricHits</span>.<span style=color:#a6e22e>Add</span>(float64(len(<span style=color:#a6e22e>keys</span>)<span style=color:#f92672>-</span>len(<span style=color:#a6e22e>miss</span>)), <span style=color:#e6db74>&#34;bts:Demos&#34;</span>)
- 
-	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>k</span>, <span style=color:#a6e22e>v</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>res</span> {
-		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>v</span>.<span style=color:#a6e22e>ID</span> <span style=color:#f92672>==</span> <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span> {
-			delete(<span style=color:#a6e22e>res</span>, <span style=color:#a6e22e>k</span>)
-		}
-	}
-	<span style=color:#a6e22e>missLen</span> <span style=color:#f92672>:=</span> len(<span style=color:#a6e22e>miss</span>)
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>missLen</span> <span style=color:#f92672>==</span> <span style=color:#ae81ff>0</span> {
-		<span style=color:#66d9ef>return</span>
-	}
-	<span style=color:#a6e22e>missData</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>int64</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#a6e22e>missLen</span>)
-    <span style=color:#75715e>// 统计缓存未命中的数量
-</span><span style=color:#75715e></span>        <span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricMisses</span>.<span style=color:#a6e22e>Add</span>(float64(<span style=color:#a6e22e>missLen</span>), <span style=color:#e6db74>&#34;bts:Demos&#34;</span>)
-	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>mutex</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>Mutex</span>
-
-    <span style=color:#75715e>// 通过errgroup包，分批从数据库中执行回源，请求数据量大的的情况下可以降低延迟
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>group</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>errgroup</span>.<span style=color:#a6e22e>WithCancel</span>(<span style=color:#a6e22e>c</span>)
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>missLen</span> &gt; <span style=color:#ae81ff>20</span> {
-		<span style=color:#a6e22e>group</span>.<span style=color:#a6e22e>GOMAXPROCS</span>(<span style=color:#ae81ff>20</span>)
-	}
-	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>run</span> = <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ms</span> []<span style=color:#66d9ef>int64</span>) {
-		<span style=color:#a6e22e>group</span>.<span style=color:#a6e22e>Go</span>(<span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) (<span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
-			<span style=color:#a6e22e>data</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>RawDemos</span>(<span style=color:#a6e22e>ctx</span>, <span style=color:#a6e22e>ms</span>)
-			<span style=color:#a6e22e>mutex</span>.<span style=color:#a6e22e>Lock</span>()
-			<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>k</span>, <span style=color:#a6e22e>v</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>data</span> {
-				<span style=color:#a6e22e>missData</span>[<span style=color:#a6e22e>k</span>] = <span style=color:#a6e22e>v</span>
-			}
-			<span style=color:#a6e22e>mutex</span>.<span style=color:#a6e22e>Unlock</span>()
-			<span style=color:#66d9ef>return</span>
-		})
-	}
-	<span style=color:#66d9ef>var</span> (
-		<span style=color:#a6e22e>i</span> <span style=color:#66d9ef>int</span>
-		<span style=color:#a6e22e>n</span> = <span style=color:#a6e22e>missLen</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>2</span>
-	)
-	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> = <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#a6e22e>n</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
-		<span style=color:#a6e22e>run</span>(<span style=color:#a6e22e>miss</span>[<span style=color:#a6e22e>i</span><span style=color:#f92672>*</span><span style=color:#ae81ff>2</span> : (<span style=color:#a6e22e>i</span><span style=color:#f92672>+</span><span style=color:#ae81ff>1</span>)<span style=color:#f92672>*</span><span style=color:#ae81ff>2</span>])
-	}
-	<span style=color:#66d9ef>if</span> len(<span style=color:#a6e22e>miss</span>[<span style=color:#a6e22e>i</span><span style=color:#f92672>*</span><span style=color:#ae81ff>2</span>:]) &gt; <span style=color:#ae81ff>0</span> {
-		<span style=color:#a6e22e>run</span>(<span style=color:#a6e22e>miss</span>[<span style=color:#a6e22e>i</span><span style=color:#f92672>*</span><span style=color:#ae81ff>2</span>:])
-	}
-	<span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>group</span>.<span style=color:#a6e22e>Wait</span>()
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span> <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#a6e22e>res</span> = make(<span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>int64</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, len(<span style=color:#a6e22e>keys</span>))
-	}
-	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>k</span>, <span style=color:#a6e22e>v</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>missData</span> {
-		<span style=color:#a6e22e>res</span>[<span style=color:#a6e22e>k</span>] = <span style=color:#a6e22e>v</span>
-	}
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#66d9ef>return</span>
-	}
-    <span style=color:#75715e>// 数据库中不存在的数据也在缓存中存储一份默认值
-</span><span style=color:#75715e></span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>key</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>miss</span> {
-		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span>[<span style=color:#a6e22e>key</span>] <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span> {
-			<span style=color:#a6e22e>missData</span>[<span style=color:#a6e22e>key</span>] = <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>Demo</span>{<span style=color:#a6e22e>ID</span>: <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span>}
-		}
-	}
-	<span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>addCache</span> {
-		<span style=color:#66d9ef>return</span>
-	}
-    <span style=color:#75715e>// 通过异步的方法添加缓存，减少本次请求的延迟
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>Do</span>(<span style=color:#a6e22e>c</span>, <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) {
-		<span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>AddCacheDemos</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>missData</span>)
-	})
-	<span style=color:#66d9ef>return</span>
-}
-</code></pre></td></tr></table>
-</div>
-</div><h3 id=21-缓存穿透>2.1 缓存穿透<a hidden class=anchor aria-hidden=true href=#21-缓存穿透>#</a></h3>
-<p>缓存穿透指的是，在读数据的时候，没有命中缓存，请求“穿透”了缓存，<strong>直接访问后端数据库</strong>的情况。缓存穿透的情况下，缓存没有发挥作用，业务系统虽然去缓存查询数据，但缓存中没有数据，因此导致了业务系统需要再次去存储系统查询数据。通常不存在的数据访问应该不会太多，但是如果针对不存在数据进行大量恶意访问，就会导致这些请求全部被数据库处理，情况严重的话会造成整个业务系统不可用。这种情况的解决方案是，<strong>对于不存在的请求，也在缓存中存放一份表示不存在的数据</strong>，Kratos的代码中也是这样实现的。</p>
-<p>Krato tool genbts 工具提供了配置项-<code>nullcache</code>来避免缓存穿透，配置了之后，生成的代码中会在回源之后增加判断，从上述代码的74-78行可以看到，从数据库读取数据之后，如果请求的缓存仍然为空，那么就缓存一个不存在的值，避免缓存穿透。</p>
-<h3 id=22-回源数据分批请求数据库>2.2 回源数据分批请求数据库<a hidden class=anchor aria-hidden=true href=#22-回源数据分批请求数据库>#</a></h3>
-<p>如果缓存未命中，就需要从数据库中回源访问，Kratos的回源访问支持多线程并发访问，见上述代码<strong>38-62</strong>行。上述代码首先使用了github.com/go-kratos/kratos/pkg/sync/errgroup包， 定义了回源函数，然后将总的数据库<strong>请求分片</strong>，分批执行。</p>
-<p>这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#75715e>// A Group is a collection of goroutines working on subtasks that are part of
-</span><span style=color:#75715e>// the same overall task.
-</span><span style=color:#75715e>//
-</span><span style=color:#75715e>// A zero Group is valid and does not cancel on error.
-</span><span style=color:#75715e></span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>Group</span> <span style=color:#66d9ef>struct</span> {
-	<span style=color:#a6e22e>err</span>     <span style=color:#66d9ef>error</span>  <span style=color:#75715e>// 最终的错误信息
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>wg</span>      <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>WaitGroup</span>  <span style=color:#75715e>// 用于确保所有子任务结束执行
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>errOnce</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>Once</span>
-
-	<span style=color:#a6e22e>workerOnce</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>Once</span>
-	<span style=color:#a6e22e>ch</span>         <span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) <span style=color:#66d9ef>error</span>  <span style=color:#75715e>// 存储待处理的任务
-</span><span style=color:#75715e></span>	<span style=color:#a6e22e>chs</span>        []<span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) <span style=color:#66d9ef>error</span>
-
-	<span style=color:#a6e22e>ctx</span>    <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>
-	<span style=color:#a6e22e>cancel</span> <span style=color:#66d9ef>func</span>()  <span style=color:#75715e>// 出错后的取消函数
-</span><span style=color:#75715e></span>}
-
-<span style=color:#f92672>...</span>
-
-<span style=color:#75715e>// Go方法增加子任务
-</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>g</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Group</span>) <span style=color:#a6e22e>Go</span>(<span style=color:#a6e22e>f</span> <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) <span style=color:#66d9ef>error</span>) {
-	<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Add</span>(<span style=color:#ae81ff>1</span>)
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#66d9ef>select</span> {
-		<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>&lt;-</span> <span style=color:#a6e22e>f</span>:
-		<span style=color:#66d9ef>default</span>:
-			<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>chs</span> = append(<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>chs</span>, <span style=color:#a6e22e>f</span>)
-		}
-		<span style=color:#66d9ef>return</span>
-	}
-	<span style=color:#66d9ef>go</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>do</span>(<span style=color:#a6e22e>f</span>)
-}
-
-<span style=color:#75715e>// Wait方法等待所有子任务结束
-</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>g</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Group</span>) <span style=color:#a6e22e>Wait</span>() <span style=color:#66d9ef>error</span> {
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>f</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>chs</span> {
-			<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>&lt;-</span> <span style=color:#a6e22e>f</span>
-		}
-	}
-	<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Wait</span>()
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		close(<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span>) <span style=color:#75715e>// let all receiver exit
-</span><span style=color:#75715e></span>	}
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>cancel</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>cancel</span>()
-	}
-	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>err</span>
-}
-</code></pre></td></tr></table>
-</div>
-</div><h3 id=23-异步添加缓存>2.3 异步添加缓存<a hidden class=anchor aria-hidden=true href=#23-异步添加缓存>#</a></h3>
-<p>如果缓存未命中，从数据库回源之后，还需要将数据加入到缓存中。但是当前请求已经获取了客户端需要的数据，因此这时候可以采用异步添加缓存的策略，当前请求直接返回给客户端。从2.1 部分开始前的代码83-85行可以看到，Kratos使用了<code>github.com/go-kratos/kratos/pkg/sync/pipeline/fanout</code>包来异步增加缓存。</p>
-<p>fanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了<strong>buffer类型的channel来存储任务</strong>，其处理任务的核心代码为：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#75715e>// New new a fanout struct.
-</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>New</span>(<span style=color:#a6e22e>name</span> <span style=color:#66d9ef>string</span>, <span style=color:#a6e22e>opts</span> <span style=color:#f92672>...</span><span style=color:#a6e22e>Option</span>) <span style=color:#f92672>*</span><span style=color:#a6e22e>Fanout</span> {
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>name</span> <span style=color:#f92672>==</span> <span style=color:#e6db74>&#34;&#34;</span> {
-		<span style=color:#a6e22e>name</span> = <span style=color:#e6db74>&#34;anonymous&#34;</span>
-	}
-	<span style=color:#a6e22e>o</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>options</span>{
-		<span style=color:#a6e22e>worker</span>: <span style=color:#ae81ff>1</span>,
-		<span style=color:#a6e22e>buffer</span>: <span style=color:#ae81ff>1024</span>,
-	}
-	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>op</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>opts</span> {
-		<span style=color:#a6e22e>op</span>(<span style=color:#a6e22e>o</span>)
-	}
-	<span style=color:#a6e22e>c</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>Fanout</span>{
-		<span style=color:#a6e22e>ch</span>:      make(<span style=color:#66d9ef>chan</span> <span style=color:#a6e22e>item</span>, <span style=color:#a6e22e>o</span>.<span style=color:#a6e22e>buffer</span>),
-		<span style=color:#a6e22e>name</span>:    <span style=color:#a6e22e>name</span>,
-		<span style=color:#a6e22e>options</span>: <span style=color:#a6e22e>o</span>,
-	}
-	<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ctx</span>, <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>cancel</span> = <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>WithCancel</span>(<span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Background</span>())
-	<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>waiter</span>.<span style=color:#a6e22e>Add</span>(<span style=color:#a6e22e>o</span>.<span style=color:#a6e22e>worker</span>)
-    <span style=color:#75715e>// 在这里启动worker
-</span><span style=color:#75715e></span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#a6e22e>o</span>.<span style=color:#a6e22e>worker</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
-		<span style=color:#66d9ef>go</span> <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>proc</span>()
-	}
-	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>c</span>
-}
-<span style=color:#f92672>...</span>
-<span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>c</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Fanout</span>) <span style=color:#a6e22e>proc</span>() {
-	<span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>waiter</span>.<span style=color:#a6e22e>Done</span>()
-	<span style=color:#66d9ef>for</span> {
-		<span style=color:#66d9ef>select</span> {
-        <span style=color:#75715e>// 循环处理channel中待处理的任务
-</span><span style=color:#75715e></span>		<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>t</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ch</span>:
-			<span style=color:#a6e22e>wrapFunc</span>(<span style=color:#a6e22e>t</span>.<span style=color:#a6e22e>f</span>)(<span style=color:#a6e22e>t</span>.<span style=color:#a6e22e>ctx</span>)
-			<span style=color:#a6e22e>_metricChanSize</span>.<span style=color:#a6e22e>Set</span>(float64(len(<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ch</span>)), <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>name</span>)
-			<span style=color:#a6e22e>_metricCount</span>.<span style=color:#a6e22e>Inc</span>(<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>name</span>)
-		<span style=color:#66d9ef>case</span> <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ctx</span>.<span style=color:#a6e22e>Done</span>():
-			<span style=color:#66d9ef>return</span>
-		}
-	}
-}
-</code></pre></td></tr></table>
-</div>
-</div><h3 id=24-监控缓存命中率>2.4 监控缓存命中率<a hidden class=anchor aria-hidden=true href=#24-监控缓存命中率>#</a></h3>
-<p>缓存监控的重点指标是缓存命中率，Kratos在也是在请求缓存之后，根据请求结果统计了如下数据：</p>
-<ul>
-<li><strong>请求缓存之后</strong>记录缓存命中数</li>
-<li><strong>请求缓存之后</strong>记录缓存未命中数</li>
-</ul>
-<p>具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#66d9ef>const</span> <span style=color:#a6e22e>_metricNamespace</span> = <span style=color:#e6db74>&#34;cache&#34;</span>
-
-<span style=color:#75715e>// be used in tool/kratos-gen-bts
-</span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> (
-	<span style=color:#a6e22e>MetricHits</span> = <span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>NewCounterVec</span>(<span style=color:#f92672>&amp;</span><span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>CounterVecOpts</span>{
-		<span style=color:#a6e22e>Namespace</span>: <span style=color:#a6e22e>_metricNamespace</span>,
-		<span style=color:#a6e22e>Subsystem</span>: <span style=color:#e6db74>&#34;&#34;</span>,
-		<span style=color:#a6e22e>Name</span>:      <span style=color:#e6db74>&#34;hits_total&#34;</span>,
-		<span style=color:#a6e22e>Help</span>:      <span style=color:#e6db74>&#34;cache hits total.&#34;</span>,
-		<span style=color:#a6e22e>Labels</span>:    []<span style=color:#66d9ef>string</span>{<span style=color:#e6db74>&#34;name&#34;</span>},
-	})
-	<span style=color:#a6e22e>MetricMisses</span> = <span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>NewCounterVec</span>(<span style=color:#f92672>&amp;</span><span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>CounterVecOpts</span>{
-		<span style=color:#a6e22e>Namespace</span>: <span style=color:#a6e22e>_metricNamespace</span>,
-		<span style=color:#a6e22e>Subsystem</span>: <span style=color:#e6db74>&#34;&#34;</span>,
-		<span style=color:#a6e22e>Name</span>:      <span style=color:#e6db74>&#34;misses_total&#34;</span>,
-		<span style=color:#a6e22e>Help</span>:      <span style=color:#e6db74>&#34;cache misses total.&#34;</span>,
-		<span style=color:#a6e22e>Labels</span>:    []<span style=color:#66d9ef>string</span>{<span style=color:#e6db74>&#34;name&#34;</span>},
-	})
-)
-</code></pre></td></tr></table>
-</div>
-</div><h3 id=25-使用singleflight模式避免缓存失效引起的缓存雪崩>2.5 使用singleflight模式避免缓存失效引起的缓存雪崩<a hidden class=anchor aria-hidden=true href=#25-使用singleflight模式避免缓存失效引起的缓存雪崩>#</a></h3>
-<p>缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。<strong>&ldquo;缓存雪崩</strong>是指当缓存失效后引起<strong>系统性能急剧下降</strong>的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。<strong>由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存</strong>，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。"[1]</p>
-<p>针对这个问题，Kratos使用了<code>singleflight</code>模式（https://github.com/golang/sync/blob/master/singleflight/singleflight.go），如果一个key失效了，同一时间只允许一个线程执行缓存更新操作。这个方法限制了缓存更新的并发度，有助于解决缓存雪崩问题。</p>
-<p>要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下<code>-singleflight=true</code>配置：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#75715e>// bts: -sync=true -nullcache=&amp;Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true
-</span><span style=color:#75715e></span><span style=color:#a6e22e>Demo</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>, <span style=color:#a6e22e>key</span> <span style=color:#66d9ef>int64</span>) (<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#66d9ef>error</span>)
-</code></pre></td></tr></table>
-</div>
-</div><p>生成代码中增加了一个全局变量<code>cacheSingleFlights</code>限制回源请求的并发度：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>cacheSingleFlights</span> = [<span style=color:#ae81ff>1</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>singleflight</span>.<span style=color:#a6e22e>Group</span>{{}}
-</code></pre></td></tr></table>
-</div>
-</div><p>然后在具体的回源代码中：</p>
-<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
-<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
-</span></code></pre></td>
-<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
-<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=color:#75715e>// Demo get data from cache if miss will call source method, then add to cache.
-</span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>d</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>dao</span>) <span style=color:#a6e22e>Demo</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>, <span style=color:#a6e22e>key</span> <span style=color:#66d9ef>int64</span>) (<span style=color:#a6e22e>res</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
-	<span style=color:#a6e22e>addCache</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>true</span>
-	<span style=color:#a6e22e>res</span>, <span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>CacheDemo</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>key</span>)
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#a6e22e>addCache</span> = <span style=color:#66d9ef>false</span>
-		<span style=color:#a6e22e>err</span> = <span style=color:#66d9ef>nil</span>
-	}
-	<span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() {
-		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span>.<span style=color:#a6e22e>ID</span> <span style=color:#f92672>==</span> <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span> {
-			<span style=color:#a6e22e>res</span> = <span style=color:#66d9ef>nil</span>
-		}
-	}()
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricHits</span>.<span style=color:#a6e22e>Inc</span>(<span style=color:#e6db74>&#34;bts:Demo&#34;</span>)
-		<span style=color:#66d9ef>return</span>
-	}
-	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>rr</span> <span style=color:#66d9ef>interface</span>{}
-	<span style=color:#a6e22e>sf</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>cacheSFDemo</span>(<span style=color:#a6e22e>key</span>)
-	<span style=color:#a6e22e>rr</span>, <span style=color:#a6e22e>err</span>, <span style=color:#a6e22e>_</span> = <span style=color:#a6e22e>cacheSingleFlights</span>[<span style=color:#ae81ff>0</span>].<span style=color:#a6e22e>Do</span>(<span style=color:#a6e22e>sf</span>, <span style=color:#66d9ef>func</span>() (<span style=color:#a6e22e>r</span> <span style=color:#66d9ef>interface</span>{}, <span style=color:#a6e22e>e</span> <span style=color:#66d9ef>error</span>) {
-		<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricMisses</span>.<span style=color:#a6e22e>Inc</span>(<span style=color:#e6db74>&#34;bts:Demo&#34;</span>)
-		<span style=color:#a6e22e>r</span>, <span style=color:#a6e22e>e</span> = <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>RawDemo</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>key</span>)
-		<span style=color:#66d9ef>return</span>
-	})
-	<span style=color:#a6e22e>res</span> = <span style=color:#a6e22e>rr</span>.(<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>)
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#66d9ef>return</span>
-	}
-	<span style=color:#a6e22e>miss</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>res</span>
-	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>miss</span> <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span> {
-		<span style=color:#a6e22e>miss</span> = <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>Demo</span>{<span style=color:#a6e22e>ID</span>: <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span>}
-	}
-	<span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>addCache</span> {
-		<span style=color:#66d9ef>return</span>
-	}
-	<span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>AddCacheDemo</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>key</span>, <span style=color:#a6e22e>miss</span>)
-	<span style=color:#66d9ef>return</span>
-}
-</code></pre></td></tr></table>
-</div>
-</div><p>从18到28行的调用可以看到，Kratos使用全局变量cacheSingleFlights限制了数据库回源请求RawDemo()的并发度，如果看一下singleflight的实现，可以看到其<strong>内部使用了map存储要执行的函数</strong>，确保在同一时间，同一个函数只被执行一次。</p>
-<p>singleflight模式只限制了，在缓存失效时，一个进程内只有一个请求到达数据库。在当前的微服务架构下，如果一个服务有上百个副本在运行，那么也有可能造成数据库压力增加，这种情况下可以采用分布式锁或者后台更新缓存的策略。</p>
-<h2 id=3-总结>3 总结<a hidden class=anchor aria-hidden=true href=#3-总结>#</a></h2>
-<p>本文从源码的角度讨论了Kratos生成的缓存回源代码的一些功能。</p>
-<h2 id=引用>引用<a hidden class=anchor aria-hidden=true href=#引用>#</a></h2>
-<p>[1] 高性能缓存架构 <a href=https://time.geekbang.org/column/article/8640>https://time.geekbang.org/column/article/8640</a></p>
-</div>
-<footer class=post-footer>
+</h1><div class=post-meta><span title="2021-01-11 00:00:00 +0000 UTC">January 11, 2021</span>&nbsp;·&nbsp;5 min&nbsp;·&nbsp;jitianyu
+</div></header><figure class=entry-cover><img loading=lazy src=https://tianyuxue.github.io/images/mountain.jpg alt>
+</figure><div class=post-content><blockquote>
+<p>本文的讨论基于Kratos v1.0.x版本</p></blockquote><p>Kratos是bilibili开源的一套Go微服务框架，包含大量微服务相关框架及工具，本文主要从源码角度分析一下Kratos中与缓存相关的代码，在分析的过程中，我会从Kratos提供的不同的功能点来结合自己的一些理解进行阐述（这篇文章没有复杂的原理，只有从工程角度的一些最佳实践)。</p><h2 id=1-kratos缓存部分提供的功能>1 Kratos缓存部分提供的功能<a hidden class=anchor aria-hidden=true href=#1-kratos缓存部分提供的功能>#</a></h2><p>Kratos提供了缓存相关的常用功能，见下表：</p><ul>
+<li>使用空缓存避免缓存穿透</li><li>缓存失效后，回源请求支持分批获取数据库数据，减少数据库访问延时</li><li>异步添加缓存</li><li>监控缓存回源比</li><li>缓存失效后，通过<code>singleflight</code>模式限制回源访问数据库的并发度，避免数据库压力过大</li></ul><h2 id=2-代码实现>2 代码实现<a hidden class=anchor aria-hidden=true href=#2-代码实现>#</a></h2><p>Kratos提供了kratos tool genbts生成缓存回源代码，并且提供了一些配置，下面根据Kratos源码提供的示例代码进行分析，代码位于<code>tool/kartos-gen-bts/test-data/dao.bts.go</code>文件中的<code>Demos()</code>方法，具体含义可以参考代码中的注释：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">50
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">51
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">52
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">53
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">54
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">55
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">56
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">57
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">58
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">59
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">60
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">61
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">62
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">63
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">64
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">65
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">66
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">67
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">68
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">69
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">70
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">71
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">72
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">73
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">74
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">75
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">76
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">77
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">78
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">79
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">80
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">81
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">82
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">83
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">84
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">85
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">86
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">87
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Demos get data from cache if miss will call source method, then add to cache.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>d</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>dao</span>) <span style=color:#a6e22e>Demos</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>, <span style=color:#a6e22e>keys</span> []<span style=color:#66d9ef>int64</span>) (<span style=color:#a6e22e>res</span> <span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>int64</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> len(<span style=color:#a6e22e>keys</span>) <span style=color:#f92672>==</span> <span style=color:#ae81ff>0</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>addCache</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>true</span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 首先尝试从缓存中加载数据
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span>, <span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>CacheDemos</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>keys</span>); <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>addCache</span> = <span style=color:#66d9ef>false</span>
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>res</span> = <span style=color:#66d9ef>nil</span>
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>err</span> = <span style=color:#66d9ef>nil</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// miss 用来存储缓存未命中的数据
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>miss</span> []<span style=color:#66d9ef>int64</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>key</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>keys</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> (<span style=color:#a6e22e>res</span> <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span>) <span style=color:#f92672>||</span> (<span style=color:#a6e22e>res</span>[<span style=color:#a6e22e>key</span>] <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span>) {
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>miss</span> = append(<span style=color:#a6e22e>miss</span>, <span style=color:#a6e22e>key</span>)
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 统计缓存命中数量
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricHits</span>.<span style=color:#a6e22e>Add</span>(float64(len(<span style=color:#a6e22e>keys</span>)<span style=color:#f92672>-</span>len(<span style=color:#a6e22e>miss</span>)), <span style=color:#e6db74>&#34;bts:Demos&#34;</span>)
+</span></span><span style=display:flex><span> 
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>k</span>, <span style=color:#a6e22e>v</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>res</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>v</span>.<span style=color:#a6e22e>ID</span> <span style=color:#f92672>==</span> <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span> {
+</span></span><span style=display:flex><span>			delete(<span style=color:#a6e22e>res</span>, <span style=color:#a6e22e>k</span>)
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>missLen</span> <span style=color:#f92672>:=</span> len(<span style=color:#a6e22e>miss</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>missLen</span> <span style=color:#f92672>==</span> <span style=color:#ae81ff>0</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>missData</span> <span style=color:#f92672>:=</span> make(<span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>int64</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#a6e22e>missLen</span>)
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 统计缓存未命中的数量
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>        <span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricMisses</span>.<span style=color:#a6e22e>Add</span>(float64(<span style=color:#a6e22e>missLen</span>), <span style=color:#e6db74>&#34;bts:Demos&#34;</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>mutex</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>Mutex</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 通过errgroup包，分批从数据库中执行回源，请求数据量大的的情况下可以降低延迟
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>group</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>errgroup</span>.<span style=color:#a6e22e>WithCancel</span>(<span style=color:#a6e22e>c</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>missLen</span> &gt; <span style=color:#ae81ff>20</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>group</span>.<span style=color:#a6e22e>GOMAXPROCS</span>(<span style=color:#ae81ff>20</span>)
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>run</span> = <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ms</span> []<span style=color:#66d9ef>int64</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>group</span>.<span style=color:#a6e22e>Go</span>(<span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) (<span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>data</span>, <span style=color:#a6e22e>err</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>RawDemos</span>(<span style=color:#a6e22e>ctx</span>, <span style=color:#a6e22e>ms</span>)
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>mutex</span>.<span style=color:#a6e22e>Lock</span>()
+</span></span><span style=display:flex><span>			<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>k</span>, <span style=color:#a6e22e>v</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>data</span> {
+</span></span><span style=display:flex><span>				<span style=color:#a6e22e>missData</span>[<span style=color:#a6e22e>k</span>] = <span style=color:#a6e22e>v</span>
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>mutex</span>.<span style=color:#a6e22e>Unlock</span>()
+</span></span><span style=display:flex><span>			<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>		})
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> (
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>i</span> <span style=color:#66d9ef>int</span>
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>n</span> = <span style=color:#a6e22e>missLen</span> <span style=color:#f92672>/</span> <span style=color:#ae81ff>2</span>
+</span></span><span style=display:flex><span>	)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> = <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#a6e22e>n</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>run</span>(<span style=color:#a6e22e>miss</span>[<span style=color:#a6e22e>i</span><span style=color:#f92672>*</span><span style=color:#ae81ff>2</span> : (<span style=color:#a6e22e>i</span><span style=color:#f92672>+</span><span style=color:#ae81ff>1</span>)<span style=color:#f92672>*</span><span style=color:#ae81ff>2</span>])
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> len(<span style=color:#a6e22e>miss</span>[<span style=color:#a6e22e>i</span><span style=color:#f92672>*</span><span style=color:#ae81ff>2</span>:]) &gt; <span style=color:#ae81ff>0</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>run</span>(<span style=color:#a6e22e>miss</span>[<span style=color:#a6e22e>i</span><span style=color:#f92672>*</span><span style=color:#ae81ff>2</span>:])
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>group</span>.<span style=color:#a6e22e>Wait</span>()
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span> <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>res</span> = make(<span style=color:#66d9ef>map</span>[<span style=color:#66d9ef>int64</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, len(<span style=color:#a6e22e>keys</span>))
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>k</span>, <span style=color:#a6e22e>v</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>missData</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>res</span>[<span style=color:#a6e22e>k</span>] = <span style=color:#a6e22e>v</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 数据库中不存在的数据也在缓存中存储一份默认值
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>key</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>miss</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span>[<span style=color:#a6e22e>key</span>] <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>missData</span>[<span style=color:#a6e22e>key</span>] = <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>Demo</span>{<span style=color:#a6e22e>ID</span>: <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span>}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>addCache</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 通过异步的方法添加缓存，减少本次请求的延迟
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>Do</span>(<span style=color:#a6e22e>c</span>, <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>AddCacheDemos</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>missData</span>)
+</span></span><span style=display:flex><span>	})
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=21-缓存穿透>2.1 缓存穿透<a hidden class=anchor aria-hidden=true href=#21-缓存穿透>#</a></h3><p>缓存穿透指的是，在读数据的时候，没有命中缓存，请求“穿透”了缓存，<strong>直接访问后端数据库</strong>的情况。缓存穿透的情况下，缓存没有发挥作用，业务系统虽然去缓存查询数据，但缓存中没有数据，因此导致了业务系统需要再次去存储系统查询数据。通常不存在的数据访问应该不会太多，但是如果针对不存在数据进行大量恶意访问，就会导致这些请求全部被数据库处理，情况严重的话会造成整个业务系统不可用。这种情况的解决方案是，<strong>对于不存在的请求，也在缓存中存放一份表示不存在的数据</strong>，Kratos的代码中也是这样实现的。</p><p>Krato tool genbts 工具提供了配置项-<code>nullcache</code>来避免缓存穿透，配置了之后，生成的代码中会在回源之后增加判断，从上述代码的74-78行可以看到，从数据库读取数据之后，如果请求的缓存仍然为空，那么就缓存一个不存在的值，避免缓存穿透。</p><h3 id=22-回源数据分批请求数据库>2.2 回源数据分批请求数据库<a hidden class=anchor aria-hidden=true href=#22-回源数据分批请求数据库>#</a></h3><p>如果缓存未命中，就需要从数据库中回源访问，Kratos的回源访问支持多线程并发访问，见上述代码<strong>38-62</strong>行。上述代码首先使用了github.com/go-kratos/kratos/pkg/sync/errgroup包， 定义了回源函数，然后将总的数据库<strong>请求分片</strong>，分批执行。</p><p>这里errgroup包的作用是什么呢？errgroup实际上是一个并发工具，可以并发执行子任务，等待子任务返回，并提供每一个子任务的错误堆栈，执行出错返回的功能。其内部使用了channel存储要执行的任务，其核心对象如下：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// A Group is a collection of goroutines working on subtasks that are part of
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// the same overall task.
+</span></span></span><span style=display:flex><span><span style=color:#75715e>//
+</span></span></span><span style=display:flex><span><span style=color:#75715e>// A zero Group is valid and does not cancel on error.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>type</span> <span style=color:#a6e22e>Group</span> <span style=color:#66d9ef>struct</span> {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>err</span>     <span style=color:#66d9ef>error</span>  <span style=color:#75715e>// 最终的错误信息
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>wg</span>      <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>WaitGroup</span>  <span style=color:#75715e>// 用于确保所有子任务结束执行
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>errOnce</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>Once</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>workerOnce</span> <span style=color:#a6e22e>sync</span>.<span style=color:#a6e22e>Once</span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>ch</span>         <span style=color:#66d9ef>chan</span> <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) <span style=color:#66d9ef>error</span>  <span style=color:#75715e>// 存储待处理的任务
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#a6e22e>chs</span>        []<span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) <span style=color:#66d9ef>error</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>ctx</span>    <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>cancel</span> <span style=color:#66d9ef>func</span>()  <span style=color:#75715e>// 出错后的取消函数
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Go方法增加子任务
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>g</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Group</span>) <span style=color:#a6e22e>Go</span>(<span style=color:#a6e22e>f</span> <span style=color:#66d9ef>func</span>(<span style=color:#a6e22e>ctx</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>) <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Add</span>(<span style=color:#ae81ff>1</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>select</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>&lt;-</span> <span style=color:#a6e22e>f</span>:
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>default</span>:
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>chs</span> = append(<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>chs</span>, <span style=color:#a6e22e>f</span>)
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>go</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>do</span>(<span style=color:#a6e22e>f</span>)
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// Wait方法等待所有子任务结束
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>g</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Group</span>) <span style=color:#a6e22e>Wait</span>() <span style=color:#66d9ef>error</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>f</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>chs</span> {
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>&lt;-</span> <span style=color:#a6e22e>f</span>
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>wg</span>.<span style=color:#a6e22e>Wait</span>()
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		close(<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>ch</span>) <span style=color:#75715e>// let all receiver exit
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>cancel</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>cancel</span>()
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>g</span>.<span style=color:#a6e22e>err</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=23-异步添加缓存>2.3 异步添加缓存<a hidden class=anchor aria-hidden=true href=#23-异步添加缓存>#</a></h3><p>如果缓存未命中，从数据库回源之后，还需要将数据加入到缓存中。但是当前请求已经获取了客户端需要的数据，因此这时候可以采用异步添加缓存的策略，当前请求直接返回给客户端。从2.1 部分开始前的代码83-85行可以看到，Kratos使用了<code>github.com/go-kratos/kratos/pkg/sync/pipeline/fanout</code>包来异步增加缓存。</p><p>fanout包可以理解为一个用groutine实现的线程池，有goroutine数量、任务buffer大小两个核心参数，其内部使用了<strong>buffer类型的channel来存储任务</strong>，其处理任务的核心代码为：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// New new a fanout struct.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> <span style=color:#a6e22e>New</span>(<span style=color:#a6e22e>name</span> <span style=color:#66d9ef>string</span>, <span style=color:#a6e22e>opts</span> <span style=color:#f92672>...</span><span style=color:#a6e22e>Option</span>) <span style=color:#f92672>*</span><span style=color:#a6e22e>Fanout</span> {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>name</span> <span style=color:#f92672>==</span> <span style=color:#e6db74>&#34;&#34;</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>name</span> = <span style=color:#e6db74>&#34;anonymous&#34;</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>o</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>options</span>{
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>worker</span>: <span style=color:#ae81ff>1</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>buffer</span>: <span style=color:#ae81ff>1024</span>,
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>_</span>, <span style=color:#a6e22e>op</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>range</span> <span style=color:#a6e22e>opts</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>op</span>(<span style=color:#a6e22e>o</span>)
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>c</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>Fanout</span>{
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>ch</span>:      make(<span style=color:#66d9ef>chan</span> <span style=color:#a6e22e>item</span>, <span style=color:#a6e22e>o</span>.<span style=color:#a6e22e>buffer</span>),
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>name</span>:    <span style=color:#a6e22e>name</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>options</span>: <span style=color:#a6e22e>o</span>,
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ctx</span>, <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>cancel</span> = <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>WithCancel</span>(<span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Background</span>())
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>waiter</span>.<span style=color:#a6e22e>Add</span>(<span style=color:#a6e22e>o</span>.<span style=color:#a6e22e>worker</span>)
+</span></span><span style=display:flex><span>    <span style=color:#75715e>// 在这里启动worker
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>	<span style=color:#66d9ef>for</span> <span style=color:#a6e22e>i</span> <span style=color:#f92672>:=</span> <span style=color:#ae81ff>0</span>; <span style=color:#a6e22e>i</span> &lt; <span style=color:#a6e22e>o</span>.<span style=color:#a6e22e>worker</span>; <span style=color:#a6e22e>i</span><span style=color:#f92672>++</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>go</span> <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>proc</span>()
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span> <span style=color:#a6e22e>c</span>
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span><span style=color:#f92672>...</span>
+</span></span><span style=display:flex><span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>c</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Fanout</span>) <span style=color:#a6e22e>proc</span>() {
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>defer</span> <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>waiter</span>.<span style=color:#a6e22e>Done</span>()
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>for</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>select</span> {
+</span></span><span style=display:flex><span>        <span style=color:#75715e>// 循环处理channel中待处理的任务
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span>		<span style=color:#66d9ef>case</span> <span style=color:#a6e22e>t</span> <span style=color:#f92672>:=</span> <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ch</span>:
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>wrapFunc</span>(<span style=color:#a6e22e>t</span>.<span style=color:#a6e22e>f</span>)(<span style=color:#a6e22e>t</span>.<span style=color:#a6e22e>ctx</span>)
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>_metricChanSize</span>.<span style=color:#a6e22e>Set</span>(float64(len(<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ch</span>)), <span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>name</span>)
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>_metricCount</span>.<span style=color:#a6e22e>Inc</span>(<span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>name</span>)
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>case</span> <span style=color:#f92672>&lt;-</span><span style=color:#a6e22e>c</span>.<span style=color:#a6e22e>ctx</span>.<span style=color:#a6e22e>Done</span>():
+</span></span><span style=display:flex><span>			<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=24-监控缓存命中率>2.4 监控缓存命中率<a hidden class=anchor aria-hidden=true href=#24-监控缓存命中率>#</a></h3><p>缓存监控的重点指标是缓存命中率，Kratos在也是在请求缓存之后，根据请求结果统计了如下数据：</p><ul>
+<li><strong>请求缓存之后</strong>记录缓存命中数</li><li><strong>请求缓存之后</strong>记录缓存未命中数</li></ul><p>具体实现上，也是使用了封装的prometheus客户端代码提供监控入口：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>const</span> <span style=color:#a6e22e>_metricNamespace</span> = <span style=color:#e6db74>&#34;cache&#34;</span>
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#75715e>// be used in tool/kratos-gen-bts
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>var</span> (
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>MetricHits</span> = <span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>NewCounterVec</span>(<span style=color:#f92672>&amp;</span><span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>CounterVecOpts</span>{
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Namespace</span>: <span style=color:#a6e22e>_metricNamespace</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Subsystem</span>: <span style=color:#e6db74>&#34;&#34;</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Name</span>:      <span style=color:#e6db74>&#34;hits_total&#34;</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Help</span>:      <span style=color:#e6db74>&#34;cache hits total.&#34;</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Labels</span>:    []<span style=color:#66d9ef>string</span>{<span style=color:#e6db74>&#34;name&#34;</span>},
+</span></span><span style=display:flex><span>	})
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>MetricMisses</span> = <span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>NewCounterVec</span>(<span style=color:#f92672>&amp;</span><span style=color:#a6e22e>metric</span>.<span style=color:#a6e22e>CounterVecOpts</span>{
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Namespace</span>: <span style=color:#a6e22e>_metricNamespace</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Subsystem</span>: <span style=color:#e6db74>&#34;&#34;</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Name</span>:      <span style=color:#e6db74>&#34;misses_total&#34;</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Help</span>:      <span style=color:#e6db74>&#34;cache misses total.&#34;</span>,
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>Labels</span>:    []<span style=color:#66d9ef>string</span>{<span style=color:#e6db74>&#34;name&#34;</span>},
+</span></span><span style=display:flex><span>	})
+</span></span><span style=display:flex><span>)
+</span></span></code></pre></td></tr></table></div></div><h3 id=25-使用singleflight模式避免缓存失效引起的缓存雪崩>2.5 使用singleflight模式避免缓存失效引起的缓存雪崩<a hidden class=anchor aria-hidden=true href=#25-使用singleflight模式避免缓存失效引起的缓存雪崩>#</a></h3><p>缓存数据本身是一个短时数据，超过一定的时间后，缓存可能会失效，也可能被业务系统主动驱逐。<strong>&ldquo;缓存雪崩</strong>是指当缓存失效后引起<strong>系统性能急剧下降</strong>的情况。当缓存过期被清除后，业务系统需要重新生成缓存，因此需要再次访问存储系统，再次进行运算，这个处理步骤耗时几十毫秒甚至上百毫秒。而对于一个高并发的业务系统来说，几百毫秒内可能会接到几百上千个请求。<strong>由于旧的缓存已经被清除，新的缓存还未生成，并且处理这些请求的线程都不知道另外有一个线程正在生成缓存</strong>，因此所有的请求都会去重新生成缓存，都会去访问存储系统，从而对存储系统造成巨大的性能压力。这些压力又会拖慢整个系统，严重的会造成数据库宕机，从而形成一系列连锁反应，造成整个系统崩溃。"[1]</p><p>针对这个问题，Kratos使用了<code>singleflight</code>模式（https://github.com/golang/sync/blob/master/singleflight/singleflight.go），如果一个key失效了，同一时间只允许一个线程执行缓存更新操作。这个方法限制了缓存更新的并发度，有助于解决缓存雪崩问题。</p><p>要使用kratos tool genbts 生成singleflight模式的代码，需要增加如下<code>-singleflight=true</code>配置：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// bts: -sync=true -nullcache=&amp;Demo{ID:-1} -check_null_code=$.ID==-1 -singleflight=true
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#a6e22e>Demo</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>, <span style=color:#a6e22e>key</span> <span style=color:#66d9ef>int64</span>) (<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#66d9ef>error</span>)
+</span></span></code></pre></td></tr></table></div></div><p>生成代码中增加了一个全局变量<code>cacheSingleFlights</code>限制回源请求的并发度：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#66d9ef>var</span> <span style=color:#a6e22e>cacheSingleFlights</span> = [<span style=color:#ae81ff>1</span>]<span style=color:#f92672>*</span><span style=color:#a6e22e>singleflight</span>.<span style=color:#a6e22e>Group</span>{{}}
+</span></span></code></pre></td></tr></table></div></div><p>然后在具体的回源代码中：</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-go data-lang=go><span style=display:flex><span><span style=color:#75715e>// Demo get data from cache if miss will call source method, then add to cache.
+</span></span></span><span style=display:flex><span><span style=color:#75715e></span><span style=color:#66d9ef>func</span> (<span style=color:#a6e22e>d</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>dao</span>) <span style=color:#a6e22e>Demo</span>(<span style=color:#a6e22e>c</span> <span style=color:#a6e22e>context</span>.<span style=color:#a6e22e>Context</span>, <span style=color:#a6e22e>key</span> <span style=color:#66d9ef>int64</span>) (<span style=color:#a6e22e>res</span> <span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>, <span style=color:#a6e22e>err</span> <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>addCache</span> <span style=color:#f92672>:=</span> <span style=color:#66d9ef>true</span>
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>res</span>, <span style=color:#a6e22e>err</span> = <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>CacheDemo</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>key</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>addCache</span> = <span style=color:#66d9ef>false</span>
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>err</span> = <span style=color:#66d9ef>nil</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>defer</span> <span style=color:#66d9ef>func</span>() {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span>.<span style=color:#a6e22e>ID</span> <span style=color:#f92672>==</span> <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span> {
+</span></span><span style=display:flex><span>			<span style=color:#a6e22e>res</span> = <span style=color:#66d9ef>nil</span>
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}()
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>res</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricHits</span>.<span style=color:#a6e22e>Inc</span>(<span style=color:#e6db74>&#34;bts:Demo&#34;</span>)
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>var</span> <span style=color:#a6e22e>rr</span> <span style=color:#66d9ef>interface</span>{}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>sf</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>cacheSFDemo</span>(<span style=color:#a6e22e>key</span>)
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>rr</span>, <span style=color:#a6e22e>err</span>, <span style=color:#a6e22e>_</span> = <span style=color:#a6e22e>cacheSingleFlights</span>[<span style=color:#ae81ff>0</span>].<span style=color:#a6e22e>Do</span>(<span style=color:#a6e22e>sf</span>, <span style=color:#66d9ef>func</span>() (<span style=color:#a6e22e>r</span> <span style=color:#66d9ef>interface</span>{}, <span style=color:#a6e22e>e</span> <span style=color:#66d9ef>error</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>cache</span>.<span style=color:#a6e22e>MetricMisses</span>.<span style=color:#a6e22e>Inc</span>(<span style=color:#e6db74>&#34;bts:Demo&#34;</span>)
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>r</span>, <span style=color:#a6e22e>e</span> = <span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>RawDemo</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>key</span>)
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	})
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>res</span> = <span style=color:#a6e22e>rr</span>.(<span style=color:#f92672>*</span><span style=color:#a6e22e>Demo</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>err</span> <span style=color:#f92672>!=</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>miss</span> <span style=color:#f92672>:=</span> <span style=color:#a6e22e>res</span>
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> <span style=color:#a6e22e>miss</span> <span style=color:#f92672>==</span> <span style=color:#66d9ef>nil</span> {
+</span></span><span style=display:flex><span>		<span style=color:#a6e22e>miss</span> = <span style=color:#f92672>&amp;</span><span style=color:#a6e22e>Demo</span>{<span style=color:#a6e22e>ID</span>: <span style=color:#f92672>-</span><span style=color:#ae81ff>1</span>}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>if</span> !<span style=color:#a6e22e>addCache</span> {
+</span></span><span style=display:flex><span>		<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#a6e22e>d</span>.<span style=color:#a6e22e>AddCacheDemo</span>(<span style=color:#a6e22e>c</span>, <span style=color:#a6e22e>key</span>, <span style=color:#a6e22e>miss</span>)
+</span></span><span style=display:flex><span>	<span style=color:#66d9ef>return</span>
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><p>从18到28行的调用可以看到，Kratos使用全局变量cacheSingleFlights限制了数据库回源请求RawDemo()的并发度，如果看一下singleflight的实现，可以看到其<strong>内部使用了map存储要执行的函数</strong>，确保在同一时间，同一个函数只被执行一次。</p><p>singleflight模式只限制了，在缓存失效时，一个进程内只有一个请求到达数据库。在当前的微服务架构下，如果一个服务有上百个副本在运行，那么也有可能造成数据库压力增加，这种情况下可以采用分布式锁或者后台更新缓存的策略。</p><h2 id=3-总结>3 总结<a hidden class=anchor aria-hidden=true href=#3-总结>#</a></h2><p>本文从源码的角度讨论了Kratos生成的缓存回源代码的一些功能。</p><h2 id=引用>引用<a hidden class=anchor aria-hidden=true href=#引用>#</a></h2><p>[1] 高性能缓存架构 <a href=https://time.geekbang.org/column/article/8640>https://time.geekbang.org/column/article/8640</a></p></div><footer class=post-footer>
 <ul class=post-tags>
-<li><a href=https://tianyuxue.github.io/tags/cache/>cache</a></li>
-<li><a href=https://tianyuxue.github.io/tags/golang/>golang</a></li>
-<li><a href=https://tianyuxue.github.io/tags/kratos/>kratos</a></li>
-</ul>
-<nav class=paginav>
+<li><a href=https://tianyuxue.github.io/tags/cache/>cache</a></li><li><a href=https://tianyuxue.github.io/tags/golang/>golang</a></li><li><a href=https://tianyuxue.github.io/tags/kratos/>kratos</a></li></ul><nav class=paginav>
 <a class=prev href=https://tianyuxue.github.io/posts/kratos-src-http/>
 <span class=title>« Prev Page</span>
 <br>
@@ -681,11 +595,7 @@ Kratos源码分析 - 缓存部分
 <br>
 <span>Kratos 源码分析 - MySQL部分</span>
 </a>
-</nav>
-</footer>
-</article>
-</main>
-<footer class=footer>
+</nav></footer></article></main><footer class=footer>
 <span>&copy; 2022 <a href=https://tianyuxue.github.io/>ACoder</a></span>
 <span>
 Powered by
@@ -694,12 +604,9 @@ Powered by
 </span>
 <div>
 <a href=https://beian.miit.gov.cn/ rel="external nofollow" target=_blank>京ICP备2021000699号</a>
-</div>
-</footer>
-<a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentcolor"><path d="M12 6H0l6-6z"/></svg>
+</div></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentcolor"><path d="M12 6H0l6-6z"/></svg>
 </a>
-<script>let menu=document.getElementById('menu');menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener("click",function(b){b.preventDefault();var a=this.getAttribute("href").substr(1);window.matchMedia('(prefers-reduced-motion: reduce)').matches?document.querySelector(`[id='${decodeURIComponent(a)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(a)}']`).scrollIntoView({behavior:"smooth"}),a==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${a}`)})})</script>
+<script>let menu=document.getElementById("menu");menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(t){t.preventDefault();var e=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(e)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(e)}']`).scrollIntoView({behavior:"smooth"}),e==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${e}`)})})</script>
 <script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script>
-<script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove('dark'),localStorage.setItem("pref-theme",'light')):(document.body.classList.add('dark'),localStorage.setItem("pref-theme",'dark'))})</script>
-</body>
-</html>
+<script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove("dark"),localStorage.setItem("pref-theme","light")):(document.body.classList.add("dark"),localStorage.setItem("pref-theme","dark"))})</script>
+</body></html>
