@@ -18,6 +18,8 @@ tags:
 
 ovs是一个分层的软件交换机，支持vlan、网卡bond、限速、vxlan隧道等功能、支持openflow1.0+协议，提供数据面高性能的转发功能。从部署视图看，进程结构如下：
 
+![ovs-progress-view](images/ovs-progress-view.png)
+
 - ovs-vswitchd 守护进程：
   - 实现了交换机的功能，包含了支持流表转发的内核模块
 - ovsdb-server 进程：
