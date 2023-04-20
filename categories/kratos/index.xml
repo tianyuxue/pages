@@ -2,21 +2,21 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>kratos on ACoder</title>
-    <link>https://tianyuxue.github.io/categories/kratos/</link>
+    <link>https://tianyuxue.github.io/pages/categories/kratos/</link>
     <description>Recent content in kratos on ACoder</description>
     <image>
-      <url>https://tianyuxue.github.io/</url>
-      <link>https://tianyuxue.github.io/</link>
+      <url>https://tianyuxue.github.io/pages</url>
+      <link>https://tianyuxue.github.io/pages</link>
     </image>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Mon, 11 Jan 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/categories/kratos/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Mon, 11 Jan 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/pages/categories/kratos/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Kratos源码分析 - 缓存部分</title>
-      <link>https://tianyuxue.github.io/posts/kratos-src-cache/</link>
+      <link>https://tianyuxue.github.io/pages/posts/kratos-src-cache/</link>
       <pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/kratos-src-cache/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/kratos-src-cache/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
 &lt;/blockquote&gt;
@@ -25,10 +25,10 @@
     
     <item>
       <title>Kratos 源码分析 - MySQL部分</title>
-      <link>https://tianyuxue.github.io/posts/kratos-src-mysql/</link>
+      <link>https://tianyuxue.github.io/pages/posts/kratos-src-mysql/</link>
       <pubDate>Thu, 07 Jan 2021 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/kratos-src-mysql/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/kratos-src-mysql/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
 &lt;/blockquote&gt;

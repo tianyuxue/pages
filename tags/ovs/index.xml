@@ -2,21 +2,21 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>ovs on ACoder</title>
-    <link>https://tianyuxue.github.io/tags/ovs/</link>
+    <link>https://tianyuxue.github.io/pages/tags/ovs/</link>
     <description>Recent content in ovs on ACoder</description>
     <image>
-      <url>https://tianyuxue.github.io/</url>
-      <link>https://tianyuxue.github.io/</link>
+      <url>https://tianyuxue.github.io/pages</url>
+      <link>https://tianyuxue.github.io/pages</link>
     </image>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Fri, 04 Mar 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/tags/ovs/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 04 Mar 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/pages/tags/ovs/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释</title>
-      <link>https://tianyuxue.github.io/posts/ovs-learning-2/</link>
+      <link>https://tianyuxue.github.io/pages/posts/ovs-learning-2/</link>
       <pubDate>Fri, 04 Mar 2022 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/ovs-learning-2/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/ovs-learning-2/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议&lt;/p&gt;
 &lt;/blockquote&gt;</description>
@@ -24,10 +24,10 @@
     
     <item>
       <title>Open vSwitch学习 - 1 开发环境搭建</title>
-      <link>https://tianyuxue.github.io/posts/ovs-learing-1/</link>
+      <link>https://tianyuxue.github.io/pages/posts/ovs-learing-1/</link>
       <pubDate>Thu, 17 Feb 2022 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/ovs-learing-1/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/ovs-learing-1/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文介绍了OVS的基本功能以及开发环境搭建的过程&lt;/p&gt;
 &lt;/blockquote&gt;</description>

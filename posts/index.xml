@@ -2,21 +2,21 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>Posts on ACoder</title>
-    <link>https://tianyuxue.github.io/posts/</link>
+    <link>https://tianyuxue.github.io/pages/posts/</link>
     <description>Recent content in Posts on ACoder</description>
     <image>
-      <url>https://tianyuxue.github.io/</url>
-      <link>https://tianyuxue.github.io/</link>
+      <url>https://tianyuxue.github.io/pages</url>
+      <link>https://tianyuxue.github.io/pages</link>
     </image>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Fri, 04 Mar 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Fri, 04 Mar 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/pages/posts/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释</title>
-      <link>https://tianyuxue.github.io/posts/ovs-learning-2/</link>
+      <link>https://tianyuxue.github.io/pages/posts/ovs-learning-2/</link>
       <pubDate>Fri, 04 Mar 2022 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/ovs-learning-2/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/ovs-learning-2/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议&lt;/p&gt;
 &lt;/blockquote&gt;</description>
@@ -24,10 +24,10 @@
     
     <item>
       <title>Open vSwitch学习 - 1 开发环境搭建</title>
-      <link>https://tianyuxue.github.io/posts/ovs-learing-1/</link>
+      <link>https://tianyuxue.github.io/pages/posts/ovs-learing-1/</link>
       <pubDate>Thu, 17 Feb 2022 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/ovs-learing-1/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/ovs-learing-1/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文介绍了OVS的基本功能以及开发环境搭建的过程&lt;/p&gt;
 &lt;/blockquote&gt;</description>
@@ -35,10 +35,10 @@
     
     <item>
       <title>Kratos源码分析 - http部分</title>
-      <link>https://tianyuxue.github.io/posts/kratos-src-http/</link>
+      <link>https://tianyuxue.github.io/pages/posts/kratos-src-http/</link>
       <pubDate>Tue, 19 Jan 2021 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/kratos-src-http/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/kratos-src-http/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
 &lt;/blockquote&gt;
@@ -47,10 +47,10 @@
     
     <item>
       <title>Kratos源码分析 - 缓存部分</title>
-      <link>https://tianyuxue.github.io/posts/kratos-src-cache/</link>
+      <link>https://tianyuxue.github.io/pages/posts/kratos-src-cache/</link>
       <pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/kratos-src-cache/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/kratos-src-cache/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
 &lt;/blockquote&gt;
@@ -59,10 +59,10 @@
     
     <item>
       <title>Kratos 源码分析 - MySQL部分</title>
-      <link>https://tianyuxue.github.io/posts/kratos-src-mysql/</link>
+      <link>https://tianyuxue.github.io/pages/posts/kratos-src-mysql/</link>
       <pubDate>Thu, 07 Jan 2021 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/kratos-src-mysql/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/kratos-src-mysql/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文的讨论基于Kratos v1.0.x版本&lt;/p&gt;
 &lt;/blockquote&gt;
@@ -71,10 +71,10 @@
     
     <item>
       <title>关于Golang GC的一些分析</title>
-      <link>https://tianyuxue.github.io/posts/golang-gc/</link>
+      <link>https://tianyuxue.github.io/pages/posts/golang-gc/</link>
       <pubDate>Sat, 02 Jan 2021 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/golang-gc/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/golang-gc/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文介绍了Golang中GC的执行过程，然后用一个例子，结合golang提供的GC日志和pprof工具，介绍GC调优的基本方法&lt;/p&gt;
 &lt;p&gt;本文的讨论基于golang 1.15.4版本&lt;/p&gt;
@@ -83,10 +83,10 @@
     
     <item>
       <title>关于Golang调度器的一些分析</title>
-      <link>https://tianyuxue.github.io/posts/golang-scheduler/</link>
+      <link>https://tianyuxue.github.io/pages/posts/golang-scheduler/</link>
       <pubDate>Sat, 26 Dec 2020 00:00:00 +0000</pubDate>
       
-      <guid>https://tianyuxue.github.io/posts/golang-scheduler/</guid>
+      <guid>https://tianyuxue.github.io/pages/posts/golang-scheduler/</guid>
       <description>&lt;blockquote&gt;
 &lt;p&gt;本文主要从实践的角度讨论了Golang中调度器工作的不同时机和处理方法&lt;/p&gt;
 &lt;p&gt;本文的讨论基于golang 1.15.4版本&lt;/p&gt;
