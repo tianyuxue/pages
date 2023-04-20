@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Tags on ACoder</title>
+    <link>https://tianyuxue.github.io/pages/tags/</link>
+    <description>Recent content in Tags on ACoder</description>
+    <image>
+      <url>https://tianyuxue.github.io/pages</url>
+      <link>https://tianyuxue.github.io/pages</link>
+    </image>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Fri, 04 Mar 2022 00:00:00 +0000</lastBuildDate><atom:link href="https://tianyuxue.github.io/pages/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>ovs</title>
+      <link>https://tianyuxue.github.io/pages/tags/ovs/</link>
+      <pubDate>Fri, 04 Mar 2022 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/ovs/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>sdn</title>
+      <link>https://tianyuxue.github.io/pages/tags/sdn/</link>
+      <pubDate>Fri, 04 Mar 2022 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/sdn/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>http</title>
+      <link>https://tianyuxue.github.io/pages/tags/http/</link>
+      <pubDate>Tue, 19 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/http/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>kratos</title>
+      <link>https://tianyuxue.github.io/pages/tags/kratos/</link>
+      <pubDate>Tue, 19 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/kratos/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>cache</title>
+      <link>https://tianyuxue.github.io/pages/tags/cache/</link>
+      <pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/cache/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>golang</title>
+      <link>https://tianyuxue.github.io/pages/tags/golang/</link>
+      <pubDate>Mon, 11 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/golang/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>mysql</title>
+      <link>https://tianyuxue.github.io/pages/tags/mysql/</link>
+      <pubDate>Thu, 07 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/mysql/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>gc</title>
+      <link>https://tianyuxue.github.io/pages/tags/gc/</link>
+      <pubDate>Sat, 02 Jan 2021 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/gc/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>调度器</title>
+      <link>https://tianyuxue.github.io/pages/tags/%E8%B0%83%E5%BA%A6%E5%99%A8/</link>
+      <pubDate>Sat, 26 Dec 2020 00:00:00 +0000</pubDate>
+      
+      <guid>https://tianyuxue.github.io/pages/tags/%E8%B0%83%E5%BA%A6%E5%99%A8/</guid>
+      <description></description>
+    </item>
+    
+  </channel>
+</rss>

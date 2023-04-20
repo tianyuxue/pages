@@ -1,0 +1,3 @@
+User-agent: *
+Disallow:
+Sitemap: https://tianyuxue.github.io/pages/sitemap.xml

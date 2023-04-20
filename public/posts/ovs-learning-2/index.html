@@ -1,0 +1,294 @@
+<!doctype html><html lang=en dir=auto>
+<head><meta charset=utf-8>
+<meta http-equiv=x-ua-compatible content="IE=edge">
+<meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no">
+<meta name=robots content="index, follow">
+<title>Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释 | ACoder</title>
+<meta name=keywords content="sdn,ovs">
+<meta name=description content="
+本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议
+">
+<meta name=author content="jitianyu">
+<link rel=canonical href=https://tianyuxue.github.io/pages/posts/ovs-learning-2/>
+<meta name=google-site-verification content="G-0T00DX73T1">
+<link crossorigin=anonymous href=/pages/assets/css/stylesheet.min.c88963fe2d79462000fd0fb1b3737783c32855d340583e4523343f8735c787f0.css integrity="sha256-yIlj/i15RiAA/Q+xs3N3g8MoVdNAWD5FIzQ/hzXHh/A=" rel="preload stylesheet" as=style>
+<link rel=preload href=images/code.png as=image>
+<script defer crossorigin=anonymous src=/pages/assets/js/highlight.min.7680afc38aa6b15ddf158a4f3780b7b1f7dde7e91d26f073e6229bb7a0793c92.js integrity="sha256-doCvw4qmsV3fFYpPN4C3sffd5+kdJvBz5iKbt6B5PJI=" onload=hljs.initHighlightingOnLoad()></script>
+<link rel=icon href=https://tianyuxue.github.io/pages/images/code.png>
+<link rel=icon type=image/png sizes=16x16 href=https://tianyuxue.github.io/pages/images/code.png>
+<link rel=icon type=image/png sizes=32x32 href=https://tianyuxue.github.io/pages/images/code.png>
+<link rel=apple-touch-icon href=https://tianyuxue.github.io/pages/images/code.png>
+<link rel=mask-icon href=https://tianyuxue.github.io/pages/images/code.png>
+<meta name=theme-color content="#2e2e33">
+<meta name=msapplication-TileColor content="#2e2e33">
+<noscript>
+<style>#theme-toggle,.top-link{display:none}</style>
+<style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--hljs-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51)}.list{background:var(--theme)}.list:not(.dark)::-webkit-scrollbar-track{background:0 0}.list:not(.dark)::-webkit-scrollbar-thumb{border-color:var(--theme)}}</style>
+</noscript>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0T00DX73T1"></script>
+<script>var doNotTrack=!1;if(!doNotTrack){window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date),gtag('config','G-0T00DX73T1',{anonymize_ip:!1})}</script>
+<meta property="og:title" content="Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释">
+<meta property="og:description" content="
+本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议
+">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://tianyuxue.github.io/pages/posts/ovs-learning-2/">
+<meta property="og:image" content="https://tianyuxue.github.io/pages/images/mountain.jpg"><meta property="article:section" content="posts">
+<meta property="article:published_time" content="2022-03-04T00:00:00+00:00">
+<meta property="article:modified_time" content="2022-03-04T00:00:00+00:00"><meta property="og:site_name" content="ACoder">
+<meta name=twitter:card content="summary_large_image">
+<meta name=twitter:image content="https://tianyuxue.github.io/pages/images/mountain.jpg">
+<meta name=twitter:title content="Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释">
+<meta name=twitter:description content="
+本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议
+">
+<script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":2,"name":"Posts","item":"https://tianyuxue.github.io/pages/posts/"},{"@type":"ListItem","position":3,"name":"Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释","item":"https://tianyuxue.github.io/pages/posts/ovs-learning-2/"}]}</script>
+<script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释","name":"Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释","description":" 本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议\n","keywords":["sdn","ovs"],"articleBody":" 本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议\n 在开发自定义SDN控制器的过程中，如果要向Open vSwitch下发下面的一条流表：\n1  ovs-ofctl -O openflow13 add-flow br-int \"cookie=0xa,table=20,priority=300,in_port=\"vxlan\",udp,nw_dst=\"100.95.0.1\",tp_dst=53 actions=move:NXM_NX_TUN_IPV4_SRC[]-NXM_NX_REG0[],move:NXM_NX_TUN_ID[0..23]-NXM_NX_REG1[0..23],goto_table:40\"   就需要构造出符合Openflow协议的二进制数据。通常Openflow相关的library会提供面向开发者友好的构造方法，比如OpenDayLight Openflow Plugin中就用yang生成了可以直接使用的类以及相关的序列化、反序列化方法，基本的Openflow消息格式可以简单的生成，但是有一些Openflow扩展协议，就需要分析协议内容。下面以上面流表为例，分析一下这个过程。\n1. 查看ovs文档 上面流表中的action使用了move指令，首先从ovs入手，查看帮助文档man ovs-actions的move部分：\n可看到，move指令是OpenFlow1.3的一个扩展。\n2. 查看Openflow 1.3扩展文档 从官网查询，copy field指令属于扩展ext-320, 从协议文档中可以查到move指令的基本格式：\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18  /* Action structure for ONFACT_ET_COPY_FIELD. */ struct onf_act_copy_field { uint16_t type; /* OFPAT_EXPERIMENTER. */ uint16_t len; /* Length is padded to 64 bits. */ uint32_t experimenter; /* ONF_EXPERIMENTER_ID. */ uint16_t exp_type; /* ONFACT_ET_COPY_FIELD. */ uint8_t pad2[2]; uint16_t n_bits; /* Number of bits to copy. */ uint16_t src_offset; /* Starting bit offset in source. */ uint16_t dst_offset; /* Starting bit offset in destination. */ uint8_t pad[2]; /* Align to 32 bits. */ /* Followed by: * - Exactly 8, 12 or 16 bytes containing the oxm_ids, then * - Enough all-zero bytes (either 0 or 4) to make the action a whole * multiple of 8 bytes in length */ uint32_t oxm_ids[0]; /* Source and destination OXM headers */ }; OFP_ASSERT(sizeof(struct ofp_action_copy_field) == 20);   以ODL为例，控制器提供的序列化方法也跟上述协议对应：\n1 2 3 4 5 6 7 8 9 10 11 12  @Override public void serialize(final Action input, final ByteBuf outBuffer) { ActionRegMove actionRegMove = (ActionRegMove) input.getActionChoice(); final int startIndex = outBuffer.writerIndex(); serializeHeader(EncodeConstants.EMPTY_LENGTH, SUBTYPE, outBuffer); outBuffer.writeShort(actionRegMove.getNxActionRegMove().getNBits().toJava()); outBuffer.writeShort(actionRegMove.getNxActionRegMove().getSrcOfs().toJava()); outBuffer.writeShort(actionRegMove.getNxActionRegMove().getDstOfs().toJava()); writeNxmHeader(actionRegMove.getNxActionRegMove().getSrc(), outBuffer); writeNxmHeader(actionRegMove.getNxActionRegMove().getDst(), outBuffer); writePaddingAndSetLength(outBuffer, startIndex); }   其中：\n nbits是move的位数 srcOfs是源地址中，copy起始位置 dstOfs是目的地址中，copy的其实位置 oxm_ids是源和目的的两个field引用  现在问题是oxm_ids该用什么值？\n3. Nicira 扩展中的filed名称 Openvswitch标准文档中有描述filed的TLV格式，以及标准协议中不同field的值：\n如果是标准协议中的field，可以直接参考。但是上述流表用了NXM_*开头的field， 这属于nicira扩展，该扩展的信息目前并没有详细的文档。为此，只能在开源的已实现的控制器中寻找标准。\nryu是一个支持Openflow协议的开源控制器（其实主要是比ovs的c代码便于阅读），其代码 ryu/ofproto/nicira_ext.py中定义了nicira扩展的field标准：\n1 2 3 4 5 6 7 8  ... NXM_NX_TUN_ID = nxm_header(0x0001, 16, 8) NXM_NX_TUN_ID_W = nxm_header_w(0x0001, 16, 8) NXM_NX_TUN_IPV4_SRC = nxm_header(0x0001, 31, 4) NXM_NX_TUN_IPV4_SRC_W = nxm_header_w(0x0001, 31, 4) NXM_NX_TUN_IPV4_DST = nxm_header(0x0001, 32, 4) NXM_NX_TUN_IPV4_DST_W = nxm_header_w(0x0001, 32, 4) ...   上面以_w结尾的field，就是带mask的field。并且ryu代码中有field值的计算方式：\n1 2 3 4 5 6 7 8  def nxm_header__(vendor, field, hasmask, length): return (vendor  16) | (field  9) | (hasmask  8) | length def nxm_header(vendor, field, length): return nxm_header__(vendor, field, 0, length) def nxm_header_w(vendor, field, length): return nxm_header__(vendor, field, 1, (length) * 2)   自此，我们可以根据ryu的源码，分析出Nicira扩展中的field的值。\n4 总结 上面通过了一个ovs流表，展示了自定义SDN控制器下发流表时的不确定字段分析方法。\n","wordCount":"319","inLanguage":"en","image":"https://tianyuxue.github.io/pages/images/mountain.jpg","datePublished":"2022-03-04T00:00:00Z","dateModified":"2022-03-04T00:00:00Z","author":{"@type":"Person","name":"jitianyu"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://tianyuxue.github.io/pages/posts/ovs-learning-2/"},"publisher":{"@type":"Organization","name":"ACoder","logo":{"@type":"ImageObject","url":"https://tianyuxue.github.io/pages/images/code.png"}}}</script>
+</head>
+<body id=top>
+<script>localStorage.getItem("pref-theme")==="dark"?document.body.classList.add('dark'):localStorage.getItem("pref-theme")==="light"?document.body.classList.remove('dark'):window.matchMedia('(prefers-color-scheme: dark)').matches&&document.body.classList.add('dark')</script>
+<header class=header>
+<nav class=nav>
+<div class=logo>
+<a href=https://tianyuxue.github.io/pages accesskey=h title="ACoder (Alt + H)">
+<img src=https://tianyuxue.github.io/pages/images/code.png alt=logo aria-label=logo height=35>ACoder</a>
+<span class=logo-switches>
+<button id=theme-toggle accesskey=t title="(Alt + T)"><svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg><svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+</button>
+</span>
+</div>
+<ul id=menu>
+<li>
+<a href=https://tianyuxue.github.io/pages/search/ title="搜索 (Alt + /)" accesskey=/>
+<span>搜索</span>
+</a>
+</li>
+<li>
+<a href=https://tianyuxue.github.io/pages/posts/ title=文章>
+<span>文章</span>
+</a>
+</li>
+<li>
+<a href=https://tianyuxue.github.io/pages/categories/ title=分类>
+<span>分类</span>
+</a>
+</li>
+<li>
+<a href=https://tianyuxue.github.io/pages/tags/ title=标签>
+<span>标签</span>
+</a>
+</li>
+<li>
+<a href=https://tianyuxue.github.io/pages/about/ title=关于我>
+<span><i class="fa fa-heart"></i>关于我</span>
+</a>
+</li>
+<li>
+<a href=https://tianyuxue.github.io/pages/archives title=归档>
+<span>归档</span>
+</a>
+</li>
+</ul>
+</nav>
+</header>
+<main class=main>
+<article class=post-single>
+<header class=post-header>
+<div class=breadcrumbs><a href=https://tianyuxue.github.io/pages>Home</a>&nbsp;»&nbsp;<a href=https://tianyuxue.github.io/pages/posts/>Posts</a></div>
+<h1 class=post-title>
+Open vSwitch学习 - 2 关于OpenFlow Nicira扩展协议的一些解释
+</h1>
+<div class=post-meta><span title="2022-03-04 00:00:00 +0000 UTC">March 4, 2022</span>&nbsp;·&nbsp;2 min&nbsp;·&nbsp;jitianyu
+</div>
+</header>
+<figure class=entry-cover><img loading=lazy src=https://tianyuxue.github.io/pages/images/mountain.jpg alt>
+</figure>
+<div class=post-content><blockquote>
+<p>本文介绍了如何在自定义控制器中实现OpenFlow Nicira扩展协议</p>
+</blockquote>
+<p>在开发自定义SDN控制器的过程中，如果要向Open vSwitch下发下面的一条流表：</p>
+<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span></code></pre></td>
+<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>ovs-ofctl -O openflow13 add-flow br-int <span style=color:#e6db74>&#34;cookie=0xa,table=20,priority=300,in_port=&#34;</span>vxlan<span style=color:#e6db74>&#34;,udp,nw_dst=&#34;</span>100.95.0.1<span style=color:#e6db74>&#34;,tp_dst=53 actions=move:NXM_NX_TUN_IPV4_SRC[]-&gt;NXM_NX_REG0[],move:NXM_NX_TUN_ID[0..23]-&gt;NXM_NX_REG1[0..23],goto_table:40&#34;</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>就需要构造出符合Openflow协议的二进制数据。通常Openflow相关的library会提供面向开发者友好的构造方法，比如OpenDayLight Openflow Plugin中就用yang生成了可以直接使用的类以及相关的序列化、反序列化方法，基本的Openflow消息格式可以简单的生成，但是有一些Openflow扩展协议，就需要分析协议内容。下面以上面流表为例，分析一下这个过程。</p>
+<h3 id=1-查看ovs文档>1. 查看ovs文档<a hidden class=anchor aria-hidden=true href=#1-查看ovs文档>#</a></h3>
+<p>上面流表中的action使用了move指令，首先从ovs入手，查看帮助文档<code>man ovs-actions</code>的move部分：</p>
+<p><img loading=lazy src=images/image-20220303164545103.png alt=image-20220303164545103>
+</p>
+<p>可看到，move指令是OpenFlow1.3的一个扩展。</p>
+<h3 id=2-查看openflow-13扩展文档>2. 查看Openflow 1.3扩展文档<a hidden class=anchor aria-hidden=true href=#2-查看openflow-13扩展文档>#</a></h3>
+<p>从官网查询，copy field指令属于扩展ext-320, 从协议文档中可以查到move指令的基本格式：</p>
+<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span></code></pre></td>
+<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-c data-lang=c><span style=color:#75715e>/* Action structure for ONFACT_ET_COPY_FIELD. */</span>
+<span style=color:#66d9ef>struct</span> onf_act_copy_field {
+	<span style=color:#66d9ef>uint16_t</span> type; <span style=color:#75715e>/* OFPAT_EXPERIMENTER. */</span>
+	<span style=color:#66d9ef>uint16_t</span> len; <span style=color:#75715e>/* Length is padded to 64 bits. */</span>
+	<span style=color:#66d9ef>uint32_t</span> experimenter; <span style=color:#75715e>/* ONF_EXPERIMENTER_ID. */</span>
+	<span style=color:#66d9ef>uint16_t</span> exp_type; <span style=color:#75715e>/* ONFACT_ET_COPY_FIELD. */</span>
+	<span style=color:#66d9ef>uint8_t</span> pad2[<span style=color:#ae81ff>2</span>];
+	<span style=color:#66d9ef>uint16_t</span> n_bits; <span style=color:#75715e>/* Number of bits to copy. */</span>
+	<span style=color:#66d9ef>uint16_t</span> src_offset; <span style=color:#75715e>/* Starting bit offset in source. */</span>
+	<span style=color:#66d9ef>uint16_t</span> dst_offset; <span style=color:#75715e>/* Starting bit offset in destination. */</span>
+	<span style=color:#66d9ef>uint8_t</span> pad[<span style=color:#ae81ff>2</span>]; <span style=color:#75715e>/* Align to 32 bits. */</span>
+	<span style=color:#75715e>/* Followed by:
+</span><span style=color:#75715e>	* - Exactly 8, 12 or 16 bytes containing the oxm_ids, then
+</span><span style=color:#75715e>	* - Enough all-zero bytes (either 0 or 4) to make the action a whole
+</span><span style=color:#75715e>	* multiple of 8 bytes in length */</span>
+	<span style=color:#66d9ef>uint32_t</span> oxm_ids[<span style=color:#ae81ff>0</span>]; <span style=color:#75715e>/* Source and destination OXM headers */</span>
+};
+OFP_ASSERT(<span style=color:#66d9ef>sizeof</span>(<span style=color:#66d9ef>struct</span> ofp_action_copy_field) <span style=color:#f92672>==</span> <span style=color:#ae81ff>20</span>);
+</code></pre></td></tr></table>
+</div>
+</div><p>以ODL为例，控制器提供的序列化方法也跟上述协议对应：</p>
+<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span></code></pre></td>
+<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java>    <span style=color:#a6e22e>@Override</span>
+    <span style=color:#66d9ef>public</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>serialize</span><span style=color:#f92672>(</span><span style=color:#66d9ef>final</span> Action input<span style=color:#f92672>,</span> <span style=color:#66d9ef>final</span> ByteBuf outBuffer<span style=color:#f92672>)</span> <span style=color:#f92672>{</span>
+        ActionRegMove actionRegMove <span style=color:#f92672>=</span> <span style=color:#f92672>(</span>ActionRegMove<span style=color:#f92672>)</span> input<span style=color:#f92672>.</span><span style=color:#a6e22e>getActionChoice</span><span style=color:#f92672>();</span>
+        <span style=color:#66d9ef>final</span> <span style=color:#66d9ef>int</span> startIndex <span style=color:#f92672>=</span> outBuffer<span style=color:#f92672>.</span><span style=color:#a6e22e>writerIndex</span><span style=color:#f92672>();</span>
+        serializeHeader<span style=color:#f92672>(</span>EncodeConstants<span style=color:#f92672>.</span><span style=color:#a6e22e>EMPTY_LENGTH</span><span style=color:#f92672>,</span> SUBTYPE<span style=color:#f92672>,</span> outBuffer<span style=color:#f92672>);</span>
+        outBuffer<span style=color:#f92672>.</span><span style=color:#a6e22e>writeShort</span><span style=color:#f92672>(</span>actionRegMove<span style=color:#f92672>.</span><span style=color:#a6e22e>getNxActionRegMove</span><span style=color:#f92672>().</span><span style=color:#a6e22e>getNBits</span><span style=color:#f92672>().</span><span style=color:#a6e22e>toJava</span><span style=color:#f92672>());</span>
+        outBuffer<span style=color:#f92672>.</span><span style=color:#a6e22e>writeShort</span><span style=color:#f92672>(</span>actionRegMove<span style=color:#f92672>.</span><span style=color:#a6e22e>getNxActionRegMove</span><span style=color:#f92672>().</span><span style=color:#a6e22e>getSrcOfs</span><span style=color:#f92672>().</span><span style=color:#a6e22e>toJava</span><span style=color:#f92672>());</span>
+        outBuffer<span style=color:#f92672>.</span><span style=color:#a6e22e>writeShort</span><span style=color:#f92672>(</span>actionRegMove<span style=color:#f92672>.</span><span style=color:#a6e22e>getNxActionRegMove</span><span style=color:#f92672>().</span><span style=color:#a6e22e>getDstOfs</span><span style=color:#f92672>().</span><span style=color:#a6e22e>toJava</span><span style=color:#f92672>());</span>
+        writeNxmHeader<span style=color:#f92672>(</span>actionRegMove<span style=color:#f92672>.</span><span style=color:#a6e22e>getNxActionRegMove</span><span style=color:#f92672>().</span><span style=color:#a6e22e>getSrc</span><span style=color:#f92672>(),</span> outBuffer<span style=color:#f92672>);</span>
+        writeNxmHeader<span style=color:#f92672>(</span>actionRegMove<span style=color:#f92672>.</span><span style=color:#a6e22e>getNxActionRegMove</span><span style=color:#f92672>().</span><span style=color:#a6e22e>getDst</span><span style=color:#f92672>(),</span> outBuffer<span style=color:#f92672>);</span>
+        writePaddingAndSetLength<span style=color:#f92672>(</span>outBuffer<span style=color:#f92672>,</span> startIndex<span style=color:#f92672>);</span>
+    <span style=color:#f92672>}</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>其中：</p>
+<ul>
+<li>nbits是move的位数</li>
+<li>srcOfs是源地址中，copy起始位置</li>
+<li>dstOfs是目的地址中，copy的其实位置</li>
+<li>oxm_ids是源和目的的两个field引用</li>
+</ul>
+<p>现在问题是oxm_ids该用什么值？</p>
+<h3 id=3-nicira-扩展中的filed名称>3. Nicira 扩展中的filed名称<a hidden class=anchor aria-hidden=true href=#3-nicira-扩展中的filed名称>#</a></h3>
+<p>Openvswitch标准文档中有描述filed的TLV格式，以及标准协议中不同field的值：</p>
+<p><img loading=lazy src=images/image-20220303165846499.png alt=image-20220303165846499>
+</p>
+<p>如果是标准协议中的field，可以直接参考。但是上述流表用了NXM_*开头的field， 这属于nicira扩展，该扩展的信息目前并没有详细的文档。为此，只能在开源的已实现的控制器中寻找标准。</p>
+<p>ryu是一个支持Openflow协议的开源控制器（其实主要是比ovs的c代码便于阅读），其代码<code> ryu/ofproto/nicira_ext.py</code>中定义了nicira扩展的field标准：</p>
+<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">4
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">5
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">6
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">7
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">8
+</span></code></pre></td>
+<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#f92672>...</span>
+NXM_NX_TUN_ID <span style=color:#f92672>=</span> nxm_header(<span style=color:#ae81ff>0x0001</span>, <span style=color:#ae81ff>16</span>, <span style=color:#ae81ff>8</span>)
+NXM_NX_TUN_ID_W <span style=color:#f92672>=</span> nxm_header_w(<span style=color:#ae81ff>0x0001</span>, <span style=color:#ae81ff>16</span>, <span style=color:#ae81ff>8</span>)
+NXM_NX_TUN_IPV4_SRC <span style=color:#f92672>=</span> nxm_header(<span style=color:#ae81ff>0x0001</span>, <span style=color:#ae81ff>31</span>, <span style=color:#ae81ff>4</span>)
+NXM_NX_TUN_IPV4_SRC_W <span style=color:#f92672>=</span> nxm_header_w(<span style=color:#ae81ff>0x0001</span>, <span style=color:#ae81ff>31</span>, <span style=color:#ae81ff>4</span>)
+NXM_NX_TUN_IPV4_DST <span style=color:#f92672>=</span> nxm_header(<span style=color:#ae81ff>0x0001</span>, <span style=color:#ae81ff>32</span>, <span style=color:#ae81ff>4</span>)
+NXM_NX_TUN_IPV4_DST_W <span style=color:#f92672>=</span> nxm_header_w(<span style=color:#ae81ff>0x0001</span>, <span style=color:#ae81ff>32</span>, <span style=color:#ae81ff>4</span>)
+<span style=color:#f92672>...</span>
+</code></pre></td></tr></table>
+</div>
+</div><p>上面以_w结尾的field，就是带mask的field。并且ryu代码中有field值的计算方式：</p>
+<div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4>
+<table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">4
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">5
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">6
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">7
+</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">8
+</span></code></pre></td>
+<td style=vertical-align:top;padding:0;margin:0;border:0;width:100%>
+<pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#66d9ef>def</span> <span style=color:#a6e22e>nxm_header__</span>(vendor, field, hasmask, length):
+	<span style=color:#66d9ef>return</span> (vendor <span style=color:#f92672>&lt;&lt;</span> <span style=color:#ae81ff>16</span>) <span style=color:#f92672>|</span> (field <span style=color:#f92672>&lt;&lt;</span> <span style=color:#ae81ff>9</span>) <span style=color:#f92672>|</span> (hasmask <span style=color:#f92672>&lt;&lt;</span> <span style=color:#ae81ff>8</span>) <span style=color:#f92672>|</span> length
+
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>nxm_header</span>(vendor, field, length):
+    <span style=color:#66d9ef>return</span> nxm_header__(vendor, field, <span style=color:#ae81ff>0</span>, length)
+
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>nxm_header_w</span>(vendor, field, length):
+    <span style=color:#66d9ef>return</span> nxm_header__(vendor, field, <span style=color:#ae81ff>1</span>, (length) <span style=color:#f92672>*</span> <span style=color:#ae81ff>2</span>)
+</code></pre></td></tr></table>
+</div>
+</div><p>自此，我们可以根据ryu的源码，分析出Nicira扩展中的field的值。</p>
+<h3 id=4-总结>4 总结<a hidden class=anchor aria-hidden=true href=#4-总结>#</a></h3>
+<p>上面通过了一个ovs流表，展示了自定义SDN控制器下发流表时的不确定字段分析方法。</p>
+</div>
+<footer class=post-footer>
+<ul class=post-tags>
+<li><a href=https://tianyuxue.github.io/pages/tags/sdn/>sdn</a></li>
+<li><a href=https://tianyuxue.github.io/pages/tags/ovs/>ovs</a></li>
+</ul>
+<nav class=paginav>
+<a class=next href=https://tianyuxue.github.io/pages/posts/ovs-learing-1/>
+<span class=title>Next Page »</span>
+<br>
+<span>Open vSwitch学习 - 1 开发环境搭建</span>
+</a>
+</nav>
+</footer>
+</article>
+</main>
+<footer class=footer>
+<span>&copy; 2023 <a href=https://tianyuxue.github.io/pages>ACoder</a></span>
+<span>
+Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+        <a href=https://git.io/hugopapermod rel=noopener target=_blank>PaperMod</a>
+</span>
+<div>
+<a href=https://beian.miit.gov.cn/ rel="external nofollow" target=_blank>京ICP备2021000699号</a>
+</div>
+</footer>
+<a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentcolor"><path d="M12 6H0l6-6z"/></svg>
+</a>
+<script>let menu=document.getElementById('menu');menu&&(menu.scrollLeft=localStorage.getItem("menu-scroll-position"),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}),document.querySelectorAll('a[href^="#"]').forEach(a=>{a.addEventListener("click",function(b){b.preventDefault();var a=this.getAttribute("href").substr(1);window.matchMedia('(prefers-reduced-motion: reduce)').matches?document.querySelector(`[id='${decodeURIComponent(a)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(a)}']`).scrollIntoView({behavior:"smooth"}),a==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${a}`)})})</script>
+<script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script>
+<script>document.getElementById("theme-toggle").addEventListener("click",()=>{document.body.className.includes("dark")?(document.body.classList.remove('dark'),localStorage.setItem("pref-theme",'light')):(document.body.classList.add('dark'),localStorage.setItem("pref-theme",'dark'))})</script>
+</body>
+</html>
